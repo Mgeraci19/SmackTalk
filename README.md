@@ -1,54 +1,74 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Witlash
 
-## Getting Started
+**Witlash** is a multiplayer party game inspired by Jackbox's *Quiplash*. Players answer prompts with witty responses and vote on their favorites in a tournament-style battle.
 
-First, run the development server:
+## Tech Stack
+-   **Frontend**: Next.js 15 (App Router), React 19, TailwindCSS 4.
+-   **Backend**: Convex (Real-time database and serverless functions).
+-   **Deployment**: GitHub Pages (Static Export).
 
-```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
-```
+## Architecture & Data Flow
+This section provides a high-level overview for developers and AI assistants navigating the codebase.
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+### Frontend Structure (`src/`)
+-   `app/page.tsx`: Landing page. Allows creating a new game or joining an existing one.
+-   `app/room/[code]/page.tsx`: **Main Game Loop**. This component handles the entire game state for a connected player (Lobby -> Writing -> Voting -> Results).
+-   `app/globals.css`: Tailwind imports and global styles.
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+### Backend Structure (`convex/`)
+-   `schema.ts`: Defines the database tables:
+    -   `games`: Stores game state (`LOBBY`, `WRITING`, `VOTING`, `RESULTS`), room code, and current round info.
+    -   `players`: Stores player profiles (name, score) linked to a game.
+    -   `prompts`: Stores the questions/prompts for a game round.
+    -   `submissions`: Stores player answers to prompts.
+    -   `votes`: Stores votes cast during the battle phase.
+-   `games.ts`: Core game logic mutations and queries:
+    -   `createGame`: Initializes a new game room.
+    -   `joinGame`: adds a player to the game.
+    -   `startGame`: Transitions from Lobby to Writing phase.
+    -   `submitAnswer`: Records a player's answer.
+    -   `submitVote`: Records a vote.
+    -   `nextPhase`: Advances the game state (e.g., Writing -> Voting).
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+## Development Setup
 
-## Learn More
+1.  **Install dependencies**:
+    ```bash
+    npm install
+    ```
 
-To learn more about Next.js, take a look at the following resources:
+2.  **Start Convex Dev Server**:
+    ```bash
+    npx convex dev
+    ```
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+3.  **Start Frontend Dev Server**:
+    ```bash
+    npm run dev
+    ```
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+4.  **Open App**: Visit `http://localhost:3000`.
 
 ## Deployment
 
-### 1. Convex Deployment (Backend)
-First, deploy your backend schema and functions to the production Convex environment:
-
+### Backend (Convex)
+Deploy your Convex functions to production:
 ```bash
 npx convex deploy
 ```
+This will provide the Production URL (e.g., `https://example-app-123.convex.cloud`).
 
-This will give you the `CONVEX_URL` and `CONVEX_DEPLOYMENT` variables needed for your frontend.
+### Frontend (GitHub Pages)
+The frontend is automatically deployed to GitHub Pages via GitHub Actions when pushing to `main`.
 
-### 2. Next.js Deployment (Frontend)
-We recommend **Vercel** for hosting.
+1.  **Configuration**:
+    The workflow is defined in `.github/workflows/deploy.yml`.
+    It uses `next build` with `output: "export"`.
 
-1. Push your code to GitHub/GitLab.
-2. Import the project in Vercel.
-3. **Environment Variables**: Add the following in Vercel Project Settings:
-   - `CONVEX_DEPLOYMENT`: (Value from step 1)
-   - `NEXT_PUBLIC_CONVEX_URL`: (Value from step 1)
-4. Deploy!
+2.  **Environment Variables**:
+    The production build requires `NEXT_PUBLIC_CONVEX_URL`.
+    This is set as a **Repository Variable** in GitHub Settings:
+    `Settings > Secrets and variables > Actions > Variables`.
 
-### 3. Verify
-Visit your Vercel URL. Open the app on your phone to test mobile responsiveness.
+3.  **Access**:
+    The live site is available at: `https://<username>.github.io/witlash`
