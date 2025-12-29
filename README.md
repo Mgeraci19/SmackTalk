@@ -1,6 +1,6 @@
 # SmackTalk
 
-**SmackTalk** is a multiplayer party game inspired by Jackbox's *Quiplash*. Players answer prompts with witty responses and vote on their favorites in a tournament-style battle.
+**SmackTalk** is a multiplayer party game Players answer prompts with witty responses and vote on their favorites in a tournament-style battle.
 
 ## Tech Stack
 -   **Frontend**: Next.js 15 (App Router), React 19, TailwindCSS 4.
