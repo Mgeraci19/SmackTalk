@@ -10,9 +10,10 @@ interface FighterHealthBarProps {
     side: "left" | "right";
     isWinner?: boolean;
     showDamage?: number; // Flash damage number when set
+    avatar?: string; // Base64 avatar image
 }
 
-export function FighterHealthBar({ name, hp, maxHp, side, isWinner, showDamage }: FighterHealthBarProps) {
+export function FighterHealthBar({ name, hp, maxHp, side, isWinner, showDamage, avatar }: FighterHealthBarProps) {
     const hpBarRef = useRef<HTMLDivElement>(null);
     const damageRef = useRef<HTMLDivElement>(null);
     const prevHpRef = useRef(hp);
@@ -45,10 +46,26 @@ export function FighterHealthBar({ name, hp, maxHp, side, isWinner, showDamage }
 
     return (
         <div className={`flex-1 ${side === "right" ? "text-right" : "text-left"}`}>
-            {/* Fighter Name */}
-            <div className={`text-2xl font-bold mb-1 ${isWinner ? "text-yellow-400" : "text-white"}`}>
-                {name}
-                {isWinner && <span className="ml-2 text-sm">WINNER</span>}
+            {/* Avatar + Name Row */}
+            <div className={`flex items-center gap-3 mb-2 ${side === "right" ? "flex-row-reverse" : ""}`}>
+                {/* Avatar */}
+                {avatar ? (
+                    <img
+                        src={avatar}
+                        alt={`${name}'s avatar`}
+                        className={`w-16 h-16 rounded-lg border-2 object-cover ${isWinner ? "border-yellow-400" : "border-gray-600"}`}
+                    />
+                ) : (
+                    <div className={`w-16 h-16 rounded-lg border-2 bg-gray-700 flex items-center justify-center text-2xl text-gray-500 ${isWinner ? "border-yellow-400" : "border-gray-600"}`}>
+                        ?
+                    </div>
+                )}
+
+                {/* Fighter Name */}
+                <div className={`text-2xl font-bold ${isWinner ? "text-yellow-400" : "text-white"}`}>
+                    {name}
+                    {isWinner && <span className="ml-2 text-sm">WINNER</span>}
+                </div>
             </div>
 
             {/* HP Bar Container */}

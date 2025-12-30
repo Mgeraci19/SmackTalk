@@ -222,37 +222,35 @@ export function useFabricCanvas(
 
     isLoadingRef.current = true;
 
-    // Create an image element
-    const img = new Image();
-    img.crossOrigin = "anonymous";
-
     try {
-      await new Promise<void>((resolve, reject) => {
-        img.onload = () => {
-          console.log("[AvatarEditor] Image loaded successfully, dimensions:", img.width, img.height);
-          // Clear canvas first
-          canvas.clear();
-          canvas.backgroundColor = "#ffffff";
+      // Use Fabric.js Image.fromURL to properly load image as a Fabric object
+      const { FabricImage } = await import("fabric");
 
-          // Draw the image scaled to fit canvas
-          const ctx = canvas.getContext();
-          ctx.drawImage(img, 0, 0, CANVAS_SIZE, CANVAS_SIZE);
+      const fabricImg = await FabricImage.fromURL(dataUrl, { crossOrigin: "anonymous" });
+      console.log("[AvatarEditor] Fabric image created, dimensions:", fabricImg.width, fabricImg.height);
 
-          canvas.renderAll();
+      // Clear canvas first
+      canvas.clear();
+      canvas.backgroundColor = "#ffffff";
 
-          // Save to history
-          historyRef.current = [JSON.stringify(canvas.toJSON())];
-          setCanUndo(false);
-          isLoadingRef.current = false;
-          console.log("[AvatarEditor] Image drawn to canvas");
-          resolve();
-        };
-        img.onerror = (e) => {
-          console.error("[AvatarEditor] Image load error:", e);
-          reject(e);
-        };
-        img.src = dataUrl;
+      // Scale image to fit canvas
+      const scale = Math.min(CANVAS_SIZE / (fabricImg.width || 1), CANVAS_SIZE / (fabricImg.height || 1));
+      fabricImg.scale(scale);
+      fabricImg.set({
+        left: (CANVAS_SIZE - (fabricImg.width || 0) * scale) / 2,
+        top: (CANVAS_SIZE - (fabricImg.height || 0) * scale) / 2,
+        selectable: true,
+        evented: true,
       });
+
+      canvas.add(fabricImg);
+      canvas.renderAll();
+
+      // Save to history
+      historyRef.current = [JSON.stringify(canvas.toJSON())];
+      setCanUndo(false);
+      isLoadingRef.current = false;
+      console.log("[AvatarEditor] Image added to canvas successfully");
     } catch (error) {
       console.error("[AvatarEditor] loadImage failed:", error);
       isLoadingRef.current = false;

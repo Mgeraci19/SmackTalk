@@ -6,15 +6,14 @@ interface HostWritingViewProps {
 }
 
 export function HostWritingView({ game }: HostWritingViewProps) {
-    // Debug: Log player avatar data
-    console.log("[HostWritingView] Players:", game.players.map(p => ({
-        name: p.name,
-        hasAvatar: !!p.avatar,
-        avatarPrefix: p.avatar?.substring(0, 30)
-    })));
+    // Debug: Log player avatar data with clear format
+    console.log("[HostWritingView] All players avatar status:");
+    game.players.forEach(p => {
+        console.log(`  - ${p.name}: hasAvatar=${!!p.avatar}, isBot=${p.isBot}, role=${p.role}, avatarType=${p.avatar?.substring(0, 20)}`);
+    });
 
-    // Get all fighters (not corner men)
-    const fighters = game.players.filter(p => p.role === "FIGHTER" && !p.isBot);
+    // Get all fighters (not corner men) - INCLUDE bots to show their avatars
+    const fighters = game.players.filter(p => p.role === "FIGHTER");
 
     // Count submissions for current round
     const submissions = game.submissions || [];

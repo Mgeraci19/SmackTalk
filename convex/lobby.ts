@@ -133,6 +133,10 @@ export const startGame = mutation({
 
             // Fetch default avatars for bots
             const defaultAvatars = await ctx.db.query("defaultAvatars").collect();
+            console.log(`[LOBBY] Found ${defaultAvatars.length} default avatars for bots`);
+            if (defaultAvatars.length > 0) {
+                console.log(`[LOBBY] Default avatar names:`, defaultAvatars.map(a => a.name));
+            }
 
             const botNames = ["Robot", "Cyborg", "Android", "Mecha", "Drone", "Golem", "Automaton", "Synth"];
             for (let i = 0; i < neededBots; i++) {
@@ -142,6 +146,7 @@ export const startGame = mutation({
                 const randomAvatar = defaultAvatars.length > 0
                     ? defaultAvatars[Math.floor(Math.random() * defaultAvatars.length)].imageData
                     : undefined;
+                console.log(`[LOBBY] Bot ${name} avatar assigned: ${!!randomAvatar}`);
 
                 await ctx.db.insert("players", {
                     gameId: args.gameId,

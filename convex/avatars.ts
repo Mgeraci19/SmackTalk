@@ -13,6 +13,10 @@ export const saveAvatar = mutation({
     avatarData: v.string(),
   },
   handler: async (ctx, args) => {
+    console.log("[avatars.saveAvatar] Called for player:", args.playerId);
+    console.log("[avatars.saveAvatar] avatarData length:", args.avatarData?.length);
+    console.log("[avatars.saveAvatar] avatarData prefix:", args.avatarData?.substring(0, 50));
+
     await validatePlayer(ctx, args.playerId, args.sessionToken);
 
     // Validate avatar size
@@ -28,6 +32,7 @@ export const saveAvatar = mutation({
     await ctx.db.patch(args.playerId, {
       avatar: args.avatarData,
     });
+    console.log("[avatars.saveAvatar] Avatar saved successfully");
   },
 });
 
@@ -67,18 +72,25 @@ export const assignRandomDefault = mutation({
     sessionToken: v.string(),
   },
   handler: async (ctx, args) => {
+    console.log("[avatars.assignRandomDefault] Called for player:", args.playerId);
+
     await validatePlayer(ctx, args.playerId, args.sessionToken);
 
     const defaults = await ctx.db.query("defaultAvatars").collect();
+    console.log("[avatars.assignRandomDefault] Found", defaults.length, "default avatars");
+
     if (defaults.length === 0) {
-      // No defaults available, leave avatar empty
+      console.log("[avatars.assignRandomDefault] No defaults available, skipping");
       return;
     }
 
     const randomDefault = defaults[Math.floor(Math.random() * defaults.length)];
+    console.log("[avatars.assignRandomDefault] Assigning avatar:", randomDefault.name);
+
     await ctx.db.patch(args.playerId, {
       avatar: randomDefault.imageData,
     });
+    console.log("[avatars.assignRandomDefault] Avatar assigned successfully");
   },
 });
 

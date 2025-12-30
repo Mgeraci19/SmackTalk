@@ -151,6 +151,7 @@ export function HostVotingView({ game }: HostVotingViewProps) {
                         maxHp={leftBattler.player.maxHp || 100}
                         side="left"
                         isWinner={leftBattler.isWinner}
+                        avatar={leftBattler.player.avatar}
                     />
                 )}
                 {rightBattler?.player && (
@@ -160,6 +161,7 @@ export function HostVotingView({ game }: HostVotingViewProps) {
                         maxHp={rightBattler.player.maxHp || 100}
                         side="right"
                         isWinner={rightBattler.isWinner}
+                        avatar={rightBattler.player.avatar}
                     />
                 )}
             </div>

@@ -8,12 +8,11 @@ export function HostLobbyView({ game }: HostLobbyViewProps) {
     const players = game.players || [];
     const vip = players.find(p => p.isVip);
 
-    // Debug: Log player avatar data
-    console.log("[HostLobbyView] Players:", players.map(p => ({
-        name: p.name,
-        hasAvatar: !!p.avatar,
-        avatarPrefix: p.avatar?.substring(0, 30)
-    })));
+    // Debug: Log player avatar data with clear format
+    console.log("[HostLobbyView] Players avatar status:");
+    players.forEach(p => {
+        console.log(`  - ${p.name}: hasAvatar=${!!p.avatar}, avatarType=${p.avatar?.substring(0, 30)}`);
+    });
 
     return (
         <div
