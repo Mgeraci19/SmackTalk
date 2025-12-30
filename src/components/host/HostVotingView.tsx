@@ -202,9 +202,8 @@ export function HostVotingView({ game }: HostVotingViewProps) {
   useEffect(() => {
     console.log("[CORNER MAN CHECK] Effect triggered", {
       currentRound: game.currentRound,
-      battleComplete,
-      leftBattlerId: leftBattler?.player?._id,
-      rightBattlerId: rightBattler?.player?._id,
+      roundStatus: game.roundStatus,
+      promptId: game.currentPromptId,
     });
 
     if (game.currentRound !== 1 && game.currentRound !== 2) {
@@ -212,33 +211,7 @@ export function HostVotingView({ game }: HostVotingViewProps) {
       return;
     }
 
-    if (!battleComplete) {
-      console.log("[CORNER MAN CHECK] Skipping - battle not complete yet");
-      return;
-    }
-
-    // Check if any of the current battlers became a corner man
-    const leftPlayer = game.players.find((p) => p._id === leftBattler?.player?._id);
-    const rightPlayer = game.players.find((p) => p._id === rightBattler?.player?._id);
-
-    console.log("[CORNER MAN CHECK] Left player:", {
-      name: leftPlayer?.name,
-      role: leftPlayer?.role,
-      teamId: leftPlayer?.teamId,
-      alreadyShown: leftPlayer ? shownCornerManRef.current.has(leftPlayer._id) : false,
-      hp: leftPlayer?.hp,
-      knockedOut: leftPlayer?.knockedOut,
-    });
-
-    console.log("[CORNER MAN CHECK] Right player:", {
-      name: rightPlayer?.name,
-      role: rightPlayer?.role,
-      teamId: rightPlayer?.teamId,
-      alreadyShown: rightPlayer ? shownCornerManRef.current.has(rightPlayer._id) : false,
-      hp: rightPlayer?.hp,
-      knockedOut: rightPlayer?.knockedOut,
-    });
-
+    // Check ALL players for new corner man assignments
     console.log("[CORNER MAN CHECK] All players roles:", game.players.map(p => ({
       name: p.name,
       role: p.role,
@@ -247,39 +220,35 @@ export function HostVotingView({ game }: HostVotingViewProps) {
       knockedOut: p.knockedOut,
     })));
 
-    let newCornerMan, champ;
+    // Find any player who just became a corner man and hasn't been shown yet
+    const newCornerMan = game.players.find(
+      (p) => p.role === "CORNER_MAN" && p.teamId && !shownCornerManRef.current.has(p._id)
+    );
 
-    // Check left player
-    if (leftPlayer?.role === "CORNER_MAN" && leftPlayer.teamId && !shownCornerManRef.current.has(leftPlayer._id)) {
-      newCornerMan = leftPlayer;
-      champ = game.players.find((p) => p._id === leftPlayer.teamId);
-      console.log("[CORNER MAN DETECTED] Left player:", newCornerMan.name, "supporting", champ?.name);
-    }
-    // Check right player
-    else if (rightPlayer?.role === "CORNER_MAN" && rightPlayer.teamId && !shownCornerManRef.current.has(rightPlayer._id)) {
-      newCornerMan = rightPlayer;
-      champ = game.players.find((p) => p._id === rightPlayer.teamId);
-      console.log("[CORNER MAN DETECTED] Right player:", newCornerMan.name, "supporting", champ?.name);
-    }
+    if (newCornerMan) {
+      const champ = game.players.find((p) => p._id === newCornerMan.teamId);
 
-    if (newCornerMan && champ) {
-      console.log("[CORNER MAN ANIMATION] Showing animation for:", newCornerMan.name, "→", champ.name);
+      console.log("[CORNER MAN DETECTED]", newCornerMan.name, "supporting", champ?.name);
 
-      // Mark this player as shown
-      shownCornerManRef.current.add(newCornerMan._id);
+      if (champ) {
+        console.log("[CORNER MAN ANIMATION] Showing animation for:", newCornerMan.name, "→", champ.name);
 
-      setCornerManAssignment({
-        cornerManName: newCornerMan.name,
-        cornerManAvatar: newCornerMan.avatar,
-        champName: champ.name,
-        champAvatar: champ.avatar,
-      });
-      // Show immediately
-      setShowCornerManAssignment(true);
+        // Mark this player as shown
+        shownCornerManRef.current.add(newCornerMan._id);
+
+        setCornerManAssignment({
+          cornerManName: newCornerMan.name,
+          cornerManAvatar: newCornerMan.avatar,
+          champName: champ.name,
+          champAvatar: champ.avatar,
+        });
+        // Show immediately
+        setShowCornerManAssignment(true);
+      }
     } else {
-      console.log("[CORNER MAN CHECK] No corner man assignment detected this cycle");
+      console.log("[CORNER MAN CHECK] No new corner man assignments detected");
     }
-  }, [game.currentRound, game.players, leftBattler, rightBattler, battleComplete]);
+  }, [game.currentRound, game.roundStatus, game.players, game.currentPromptId]);
 
   // Callbacks
   const handleBattleComplete = useCallback(() => {
