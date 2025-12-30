@@ -138,9 +138,10 @@ export function AvatarEditor({
         >
           <canvas
             ref={canvasRef}
-            width={300}
-            height={300}
-            className="rounded-md"
+            width={600}
+            height={600}
+            className="rounded-md max-w-full"
+            style={{ width: '100%', maxWidth: '600px', height: 'auto', aspectRatio: '1/1' }}
           />
         </div>
       </div>

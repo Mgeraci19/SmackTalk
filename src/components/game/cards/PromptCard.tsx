@@ -65,9 +65,15 @@ export function PromptCard({ prompt, initialValue, isDone, onSubmit, onSetValue,
                             data-testid={`submit-answer-${promptIdSafe}`}
                             data-action="submit-answer"
                             data-prompt-id={prompt._id}
-                            data-has-value={value.length > 0}
+                            data-has-value={value.trim().length > 0}
                             aria-label={`Submit answer for: ${prompt.text}`}
-                            onClick={() => onSubmit(value).catch((e) => showError("submit-failed", (e as Error).message))}
+                            // VALIDATION: Disable if empty or whitespace only
+                            disabled={value.trim().length === 0}
+                            onClick={() => {
+                                const trimmed = value.trim();
+                                if (trimmed.length === 0) return;
+                                onSubmit(trimmed).catch((e) => showError("submit-failed", (e as Error).message));
+                            }}
                         >
                             Submit
                         </Button>

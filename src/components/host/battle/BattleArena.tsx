@@ -26,6 +26,8 @@ export function BattleArena({
   isReveal,
   promptId,
   promptText,
+  leftDamage,
+  rightDamage,
   onBattleComplete,
   onDamageApplied,
 }: BattleArenaProps) {
@@ -43,6 +45,10 @@ export function BattleArena({
 
   // Reset on prompt change
   useEffect(() => {
+    // CRITICAL: Reset the hasStartedRef so animations can run again
+    hasStartedRef.current = false;
+    hasRevealedRef.current = false;
+
     actions.reset();
 
     // Reset GSAP positions
@@ -52,9 +58,11 @@ export function BattleArena({
     if (refs.answer1.current) gsap.set(refs.answer1.current, { opacity: 0, scale: 0.5, x: 0, y: 0, visibility: "visible" });
     if (refs.answer2.current) gsap.set(refs.answer2.current, { opacity: 0, scale: 0.5, x: 0, y: 0, visibility: "visible" });
     if (refs.vsBadge.current) gsap.set(refs.vsBadge.current, { opacity: 1 });
-  }, [promptId, actions, refs]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [promptId]);
 
   // Entry sequence: Question → Answers → Voting
+  // Use promptId as key to ensure it only runs once per prompt
   useEntrySequence({
     refs,
     actions,
@@ -62,6 +70,7 @@ export function BattleArena({
     rightBattler,
     promptText,
     hasStartedRef,
+    promptId, // Add promptId for stable tracking
   });
 
   // Reveal sequence: Slide → Votes → Attack
@@ -108,6 +117,8 @@ export function BattleArena({
           actions,
           leftBattler,
           rightBattler,
+          leftDamage,
+          rightDamage,
           onDamageApplied: onDamageAppliedRef.current,
           onComplete: onBattleCompleteRef.current,
         });
@@ -118,6 +129,8 @@ export function BattleArena({
           actions,
           leftBattler,
           rightBattler,
+          leftDamage,
+          rightDamage,
           onDamageApplied: onDamageAppliedRef.current,
           onComplete: onBattleCompleteRef.current,
         });

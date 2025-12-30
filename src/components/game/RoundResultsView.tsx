@@ -29,27 +29,14 @@ export function RoundResultsView({ game, playerId, sessionToken, isVip, nextRoun
 
             <h2 id="round-results-title" className="text-3xl font-bold mb-4">ROUND {game.currentRound} OVER</h2>
             <p className="mb-8">Current Standings:</p>
+            <p className="mb-8">Current Standings:</p>
+            {/* HIDE STANDINGS ON MOBILE */}
             <div
-                id="round-standings-list"
-                data-testid="round-standings-list"
-                className="space-y-2 bg-white p-4 rounded shadow-sm"
+                id="round-standings-hidden-message"
+                className="p-8 bg-indigo-50 rounded-lg border-2 border-indigo-200"
             >
-                {game.players
-                    .sort((a, b) => (b.hp ?? 100) - (a.hp ?? 100))
-                    .map((p, i) => (
-                        <div
-                            key={p._id}
-                            id={`standing-${i + 1}`}
-                            data-player-id={p._id}
-                            data-rank={i + 1}
-                            data-hp={p.hp ?? 100}
-                            data-is-me={p._id === playerId}
-                            className="text-xl flex justify-between border-b last:border-0 pb-2 mb-2 last:mb-0 last:pb-0"
-                        >
-                            <span>#{i + 1} {p.name} {p._id === playerId && "(You)"}</span>
-                            <span className="font-bold">{p.hp ?? 100} HP</span>
-                        </div>
-                    ))}
+                <h3 className="text-xl font-bold text-indigo-800 mb-2">👀 Look at the Main Screen!</h3>
+                <p className="text-gray-600">Check the host display to see who is winning!</p>
             </div>
 
             {isVip ? (

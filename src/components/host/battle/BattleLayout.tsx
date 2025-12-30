@@ -37,21 +37,22 @@ export function BattleLayout({
       className="relative w-full h-full flex flex-col overflow-hidden"
       data-phase={phase}
     >
-      {/* Question - Large and prominent at top */}
+      {/* Question - Large and prominent at top, nestled between health bars */}
       {/* Initial state set by GSAP in BattleArena reset effect */}
       <div
         ref={refs.question}
-        className="text-center px-8 py-6 mb-4 invisible"
+        className="text-center px-4 md:px-8 py-2 md:py-3 mb-2"
+        style={{ visibility: 'hidden' }}
       >
-        <div className="text-4xl md:text-5xl font-bold text-white leading-tight max-w-4xl mx-auto">
+        <div className="text-2xl md:text-4xl lg:text-5xl font-bold text-white leading-tight max-w-4xl mx-auto">
           &ldquo;{promptText}&rdquo;
         </div>
       </div>
 
       {/* Main battle area */}
       <div className="flex-1 relative min-h-0">
-        {/* Fighters - positioned on sides */}
-        <div className="absolute inset-0 flex items-center justify-between px-8" style={{ zIndex: 10 }}>
+        {/* Fighters - positioned at edges, moved up to accommodate larger size */}
+        <div className="absolute inset-0 flex items-start justify-between px-2 md:px-4 pt-2 md:pt-4" style={{ zIndex: 10 }}>
           <div ref={refs.leftFighter}>
             <AvatarFighter
               name={leftBattler.name}
@@ -83,32 +84,38 @@ export function BattleLayout({
             {/* First Answer - Initial state set by GSAP */}
             <div
               ref={refs.answer1}
+              style={{ visibility: 'hidden' }}
               className={`
-                w-full rounded-xl p-6 invisible
+                w-full rounded-xl p-4 md:p-6
                 transition-colors duration-300
                 ${showWinner && firstAnswer.isWinner
-                  ? "bg-green-900/50 ring-2 ring-yellow-400"
-                  : showWinner && !firstAnswer.isWinner
-                  ? "bg-gray-800/50 opacity-70"
+                  ? "bg-green-900 ring-2 ring-yellow-400"
                   : "bg-gray-800"
                 }
               `}
             >
               {showAuthors && (
-                <div className="text-sm text-gray-400 text-center mb-2">
+                <div className="text-base md:text-lg text-gray-400 text-center mb-2">
                   {firstAnswer.name}
                 </div>
               )}
-              <div className="text-3xl md:text-4xl text-white text-center font-medium leading-relaxed">
+              <div className="text-xl md:text-2xl lg:text-3xl text-white text-center font-medium leading-relaxed">
                 {firstAnswer.answer}
               </div>
               {showVotes && (
-                <div className={`text-center mt-3 text-xl font-bold ${
-                  showWinner && firstAnswer.isWinner ? "text-yellow-400" : "text-gray-400"
-                }`}>
-                  {answerOrder.first === "left" ? displayedVotes.left : displayedVotes.right} vote
-                  {(answerOrder.first === "left" ? displayedVotes.left : displayedVotes.right) === 1 ? "" : "s"}
-                </div>
+                <>
+                  <div className={`text-center mt-3 text-xl md:text-2xl font-bold ${
+                    showWinner && firstAnswer.isWinner ? "text-yellow-400" : "text-gray-300"
+                  }`}>
+                    {answerOrder.first === "left" ? displayedVotes.left : displayedVotes.right} vote
+                    {(answerOrder.first === "left" ? displayedVotes.left : displayedVotes.right) === 1 ? "" : "s"}
+                  </div>
+                  {firstAnswer.voters && firstAnswer.voters.length > 0 && (
+                    <div className="text-center mt-2 text-base md:text-lg text-gray-300">
+                      {firstAnswer.voters.join(", ")}
+                    </div>
+                  )}
+                </>
               )}
             </div>
 
@@ -127,32 +134,38 @@ export function BattleLayout({
             {/* Second Answer - Initial state set by GSAP */}
             <div
               ref={refs.answer2}
+              style={{ visibility: 'hidden' }}
               className={`
-                w-full rounded-xl p-6 invisible
+                w-full rounded-xl p-4 md:p-6
                 transition-colors duration-300
                 ${showWinner && secondAnswer.isWinner
-                  ? "bg-green-900/50 ring-2 ring-yellow-400"
-                  : showWinner && !secondAnswer.isWinner
-                  ? "bg-gray-800/50 opacity-70"
+                  ? "bg-green-900 ring-2 ring-yellow-400"
                   : "bg-gray-800"
                 }
               `}
             >
               {showAuthors && (
-                <div className="text-sm text-gray-400 text-center mb-2">
+                <div className="text-base md:text-lg text-gray-400 text-center mb-2">
                   {secondAnswer.name}
                 </div>
               )}
-              <div className="text-3xl md:text-4xl text-white text-center font-medium leading-relaxed">
+              <div className="text-xl md:text-2xl lg:text-3xl text-white text-center font-medium leading-relaxed">
                 {secondAnswer.answer}
               </div>
               {showVotes && (
-                <div className={`text-center mt-3 text-xl font-bold ${
-                  showWinner && secondAnswer.isWinner ? "text-yellow-400" : "text-gray-400"
-                }`}>
-                  {answerOrder.second === "left" ? displayedVotes.left : displayedVotes.right} vote
-                  {(answerOrder.second === "left" ? displayedVotes.left : displayedVotes.right) === 1 ? "" : "s"}
-                </div>
+                <>
+                  <div className={`text-center mt-3 text-xl md:text-2xl font-bold ${
+                    showWinner && secondAnswer.isWinner ? "text-yellow-400" : "text-gray-300"
+                  }`}>
+                    {answerOrder.second === "left" ? displayedVotes.left : displayedVotes.right} vote
+                    {(answerOrder.second === "left" ? displayedVotes.left : displayedVotes.right) === 1 ? "" : "s"}
+                  </div>
+                  {secondAnswer.voters && secondAnswer.voters.length > 0 && (
+                    <div className="text-center mt-2 text-base md:text-lg text-gray-300">
+                      {secondAnswer.voters.join(", ")}
+                    </div>
+                  )}
+                </>
               )}
             </div>
 

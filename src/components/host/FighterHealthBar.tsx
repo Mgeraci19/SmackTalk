@@ -1,7 +1,7 @@
 /* eslint-disable @next/next/no-img-element */
 "use client";
 
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import { gsap } from "./animations/gsapConfig";
 
 interface FighterHealthBarProps {
@@ -18,31 +18,50 @@ export function FighterHealthBar({ name, hp, maxHp, side, isWinner, showDamage, 
     const hpBarRef = useRef<HTMLDivElement>(null);
     const damageRef = useRef<HTMLDivElement>(null);
     const prevHpRef = useRef(hp);
+    const [displayedHp, setDisplayedHp] = useState(hp);
 
     const hpPercentage = Math.max(0, (hp / maxHp) * 100);
     const hpColor = hpPercentage > 50 ? "bg-green-500" : hpPercentage > 25 ? "bg-yellow-500" : "bg-red-500";
 
-    // Animate HP bar changes
+    // Animate HP bar changes and number counting
     useEffect(() => {
         if (!hpBarRef.current) return;
         if (prevHpRef.current !== hp) {
+            const previousHp = prevHpRef.current;
+
             // Quick punch animation on HP change
             gsap.fromTo(hpBarRef.current,
                 { scaleY: 1.3 },
                 { scaleY: 1, duration: 0.15, ease: "power2.out" }
             );
+
+            // Animate the HP number counting down/up
+            gsap.to({ value: previousHp }, {
+                value: hp,
+                duration: 0.3,
+                ease: "power2.out",
+                onUpdate: function() {
+                    setDisplayedHp(Math.round(this.targets()[0].value));
+                },
+            });
+
             prevHpRef.current = hp;
         }
     }, [hp]);
 
     // Animate damage number
     useEffect(() => {
-        if (!damageRef.current || !showDamage) return;
+        if (!showDamage) return;
 
-        gsap.fromTo(damageRef.current,
-            { opacity: 1, y: 0, scale: 1.5 },
-            { opacity: 0, y: -30, scale: 1, duration: 0.6, ease: "power2.out" }
-        );
+        // Wait for next frame to ensure ref is attached
+        requestAnimationFrame(() => {
+            if (!damageRef.current) return;
+
+            gsap.fromTo(damageRef.current,
+                { opacity: 1, y: 0, scale: 1.5 },
+                { opacity: 0, y: -30, scale: 1, duration: 0.6, ease: "power2.out" }
+            );
+        });
     }, [showDamage]);
 
     return (
@@ -82,14 +101,15 @@ export function FighterHealthBar({ name, hp, maxHp, side, isWinner, showDamage, 
 
                 {/* HP Text */}
                 <div className="absolute inset-0 flex items-center justify-center text-sm font-bold text-white drop-shadow-lg">
-                    {hp}/{maxHp}
+                    {displayedHp}/{maxHp}
                 </div>
 
                 {/* Damage Number (floats up) */}
                 {showDamage && showDamage > 0 && (
                     <div
                         ref={damageRef}
-                        className="absolute -top-2 left-1/2 -translate-x-1/2 text-red-500 font-bold text-xl"
+                        className="absolute -top-8 left-1/2 -translate-x-1/2 text-red-500 font-bold text-3xl drop-shadow-[0_2px_4px_rgba(0,0,0,0.8)] pointer-events-none z-10"
+                        style={{ textShadow: '2px 2px 4px rgba(0,0,0,0.9), -1px -1px 2px rgba(0,0,0,0.9)' }}
                     >
                         -{showDamage}
                     </div>

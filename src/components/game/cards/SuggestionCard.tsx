@@ -70,16 +70,20 @@ export function SuggestionCard({ prompt, game, playerId, sessionToken, submitSug
                         data-testid={`corner-suggest-button-${promptIdSafe}`}
                         data-action="submit-suggestion"
                         data-prompt-id={prompt._id}
+                        data-prompt-id={prompt._id}
                         aria-label={`Suggest answer for: ${prompt.text}`}
+                        // VALIDATION: Disable if empty or whitespace only
+                        disabled={suggestionText.trim().length === 0}
                         onClick={async () => {
-                            if (!suggestionText) return;
+                            const trimmed = suggestionText.trim();
+                            if (!trimmed) return;
                             try {
                                 await submitSuggestion({
                                     gameId: game._id,
                                     playerId: playerId!,
                                     sessionToken,
                                     promptId: prompt._id,
-                                    text: suggestionText
+                                    text: trimmed
                                 });
                                 setSuggestionText("");
                             } catch (e) {
@@ -99,15 +103,18 @@ export function SuggestionCard({ prompt, game, playerId, sessionToken, submitSug
                             variant="destructive"
                             className="whitespace-nowrap"
                             aria-label={`Submit answer for Bot for: ${prompt.text}`}
+                            // VALIDATION: Disable if empty or whitespace only
+                            disabled={suggestionText.trim().length === 0}
                             onClick={async () => {
-                                if (!suggestionText) return;
+                                const trimmed = suggestionText.trim();
+                                if (!trimmed) return;
                                 try {
                                     await submitAnswerForBot({
                                         gameId: game._id,
                                         playerId: playerId!, // Corner man's ID for auth
                                         sessionToken,
                                         promptId: prompt._id,
-                                        text: suggestionText
+                                        text: trimmed
                                     });
                                     setIsSubmitted(true);
                                 } catch (e) {

@@ -11,6 +11,7 @@ export interface BattlerInfo {
   voters: string[];
   hp: number;
   maxHp: number;
+  submissionTime?: number; // For tie-breaking in double KO scenarios
 }
 
 export type RevealPhase =
@@ -31,6 +32,8 @@ export interface BattleArenaProps {
   isReveal: boolean;
   promptId?: string;
   promptText?: string;
+  leftDamage: number;
+  rightDamage: number;
   onBattleComplete?: () => void;
   onDamageApplied?: (side: BattleSide, damage: number) => void;
 }

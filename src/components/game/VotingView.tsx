@@ -65,162 +65,126 @@ export function VotingView({ game, playerId, sessionToken, isVip, submitVote, ne
             id="voting-view"
             data-game-phase="voting"
             data-round-status={game.roundStatus}
-            data-is-reveal={votingState?.isReveal}
-            data-has-voted={votingState?.hasVoted}
-            data-can-vote={userRoleState.canVote}
-            data-is-vip={isVip}
-            data-current-prompt-id={game.currentPromptId}
             className="space-y-6 relative"
         >
             <ErrorBanner error={error} onDismiss={clearError} />
 
-            <div
-                id="voting-header"
-                className="text-center p-4 bg-blue-100 rounded"
-            >
-                <h2 id="voting-phase-title" className="text-2xl font-bold mb-2">
-                    {votingState?.isReveal ? "RESULTS" : "VOTING PHASE"}
+            {/* Simplified header */}
+            <div className="text-center mb-4">
+                <h2 className="text-xl font-bold text-gray-800">
+                    {votingState?.isReveal ? "Results" : "Voting"}
                 </h2>
-                {isVip && votingState?.isReveal && (
-                    <Button
-                        id="next-battle-button"
-                        data-testid="next-battle-button"
-                        data-action="next-battle"
-                        data-requires-vip="true"
-                        aria-label="Advance to next battle"
-                        className="mt-2 w-full animate-bounce"
-                        size="lg"
-                        onClick={() => playerId && nextBattle({ gameId: game._id, playerId, sessionToken }).catch((e) => showError("action-failed", (e as Error).message))}
-                    >
-                        Next Battle ⏭️
-                    </Button>
-                )}
             </div>
 
+            {/* The Prompt - Clean and centered */}
+            <div className="mb-8">
+                <div className="text-center mb-2">
+                    <span className="text-xs uppercase tracking-wider text-gray-500 font-semibold">The Prompt</span>
+                </div>
+                <div className="bg-gradient-to-br from-indigo-600 to-purple-600 text-white rounded-2xl p-6 shadow-lg">
+                    <p className="text-2xl font-bold leading-relaxed">
+                        &ldquo;{promptText}&rdquo;
+                    </p>
+                </div>
+            </div>
+
+            {/* The Answers - Clean cards */}
             <div className="space-y-4">
-                <div id="current-prompt-container" className="text-center mb-4">
-                    <div className="text-sm uppercase text-gray-500 font-bold tracking-wider">Voting For</div>
-                    <div
-                        id="current-prompt-text"
-                        data-testid="current-prompt-text"
-                        data-prompt-id={game.currentPromptId}
-                        className="text-xl font-bold text-center border p-6 rounded-xl bg-white shadow-lg mt-1"
-                    >
-                        {promptText}
-                    </div>
+                <div className="text-center mb-2">
+                    <span className="text-xs uppercase tracking-wider text-gray-500 font-semibold">The Answers</span>
                 </div>
 
-                <div id="submissions-grid" className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    {currentSubmissions.map((s, index) => {
-                        const isMyVote = myVote?.submissionId === s._id;
-                        const isMine = s.playerId === playerId;
+                {currentSubmissions.map((s, index) => {
+                    const isMyVote = myVote?.submissionId === s._id;
+                    const isMine = s.playerId === playerId;
 
-                        const votesForThis = currentVotes.filter((v) => v.submissionId === s._id);
-                        const count = votesForThis.length;
-                        const percentage = votingState?.totalVotes ? Math.round((count / votingState.totalVotes) * 100) : 0;
-                        const author = game.players.find((p) => p._id === s.playerId);
+                    return (
+                        <Button
+                            key={s._id}
+                            id={`vote-button-${s._id}`}
+                            data-action="vote"
+                            variant={isMyVote ? "default" : "outline"}
+                            disabled={!userRoleState.canVote || isSubmitting || votingState?.isReveal}
+                            onClick={async () => {
+                                if (!userRoleState.canVote || isSubmitting || myVote || votingState?.isReveal) return;
 
-                        const isWinner = votingState?.isReveal && votingState.totalVotes > 0 && count === maxVotes;
-
-                        return (
-                            <div
-                                key={s._id}
-                                id={`submission-card-${index}`}
-                                data-submission-id={s._id}
-                                data-is-winner={isWinner}
-                                data-vote-count={count}
-                                data-vote-percentage={percentage}
-                                data-author-name={author?.name}
-                                className="relative"
-                            >
-                                <Button
-                                    id={`vote-button-${s._id}`}
-                                    data-testid={`vote-button-${index}`}
-                                    data-action="vote"
-                                    data-submission-id={s._id}
-                                    data-is-my-answer={isMine}
-                                    data-is-my-vote={isMyVote}
-                                    data-can-vote={userRoleState.canVote && !myVote}
-                                    data-vote-state={isMyVote ? "voted" : myVote ? "other-voted" : "available"}
-                                    data-is-winner={isWinner}
-                                    aria-label={`Vote for answer: ${s.text}${isMine ? ' (Your answer)' : ''}`}
-                                    variant={votingState?.isReveal ? (count > 0 ? "default" : "secondary") : (isMyVote ? "default" : "outline")}
-                                    className={`h-48 w-full text-lg whitespace-normal cursor-pointer flex flex-col p-4
-                                            ${!votingState?.isReveal && isMyVote ? "bg-green-600 hover:bg-green-700 text-white ring-2 ring-green-400" : ""} 
-                                            ${!votingState?.isReveal && userRoleState.canVote && !!myVote ? "opacity-50" : "hover:bg-blue-50"}
-                                            ${isWinner ? "ring-4 ring-yellow-400 bg-yellow-50 scale-105 transition-transform" : ""}
-                                            ${!userRoleState.canVote && !votingState?.isReveal ? "cursor-not-allowed opacity-60 grayscale" : ""}
-                                        `}
-                                    disabled={!userRoleState.canVote || isSubmitting}
-                                    onClick={async () => {
-                                        if (!userRoleState.canVote || isSubmitting || myVote) return;
-
-                                        setIsSubmitting(true);
-                                        try {
-                                            await submitVote({
-                                                gameId: game._id,
-                                                playerId: playerId as Id<"players">,
-                                                sessionToken,
-                                                promptId: game.currentPromptId!,
-                                                submissionId: s._id
-                                            });
-                                        } catch (e) {
-                                            showError("vote-failed", (e as Error).message);
-                                        } finally {
-                                            setIsSubmitting(false);
-                                        }
-                                    }}
-                                >
-                                    <span id={`submission-text-${index}`} className={`font-bold text-xl ${isWinner ? "text-yellow-800" : ""}`}>&ldquo;{s.text}&rdquo;</span>
-
-                                    {!votingState?.isReveal && isMine && (
-                                        <span id={`your-answer-label-${index}`} className="text-xs mt-2 text-gray-500 uppercase font-bold tracking-widest">(Your Answer)</span>
+                                setIsSubmitting(true);
+                                try {
+                                    await submitVote({
+                                        gameId: game._id,
+                                        playerId: playerId as Id<"players">,
+                                        sessionToken,
+                                        promptId: game.currentPromptId!,
+                                        submissionId: s._id
+                                    });
+                                } catch (e) {
+                                    showError("vote-failed", (e as Error).message);
+                                } finally {
+                                    setIsSubmitting(false);
+                                }
+                            }}
+                            className={`
+                                w-full min-h-[120px] text-left p-6 rounded-xl text-lg
+                                ${isMyVote
+                                    ? "bg-green-600 hover:bg-green-700 text-white shadow-lg"
+                                    : "bg-white hover:bg-gray-50 text-gray-900 border-2 border-gray-200"
+                                }
+                                ${!userRoleState.canVote || votingState?.isReveal ? "cursor-default opacity-75" : ""}
+                                transition-all duration-200
+                            `}
+                        >
+                            <div className="flex flex-col gap-2">
+                                <p className="font-bold text-xl leading-relaxed">
+                                    &ldquo;{s.text}&rdquo;
+                                </p>
+                                <div className="flex items-center gap-2 text-sm">
+                                    {isMine && (
+                                        <span className="text-xs bg-blue-500 text-white px-2 py-1 rounded-full font-semibold">
+                                            Your Answer
+                                        </span>
                                     )}
-
-                                    {!votingState?.isReveal && isMyVote && " ✅"}
-
-                                    {votingState?.isReveal && (
-                                        <div id={`results-${index}`} className="mt-4 text-sm w-full pt-4 border-t border-black/10">
-                                            <div className="font-bold text-2xl mb-1">{percentage}%</div>
-                                            <div className="text-xs opacity-75">by {author?.name}</div>
-                                        </div>
+                                    {isMyVote && (
+                                        <span className="text-xs bg-white/20 px-2 py-1 rounded-full font-semibold">
+                                            ✓ Voted
+                                        </span>
                                     )}
-                                </Button>
-
-                                {votingState?.isReveal && (
-                                    <div id={`voters-list-${index}`} data-voter-count={count} className="mt-2 text-center text-xs text-gray-600">
-                                        {count > 0 && <div className="font-bold mb-1">Voted for by:</div>}
-                                        {votesForThis.map((v) => {
-                                            const voter = game.players.find((p) => p._id === v.playerId);
-                                            return <div key={v._id} className="bg-gray-200 rounded px-2 py-1 inline-block m-0.5">{voter?.name}</div>
-                                        })}
-                                    </div>
-                                )}
+                                </div>
                             </div>
-                        );
-                    })}
-                </div>
-
-                {!game.roundStatus || game.roundStatus === "VOTING" ? (
-                    <>
-                        {votingState?.hasVoted && (
-                            <div id="vote-recorded-message" data-status="vote-recorded" className="text-center text-gray-500 italic animate-pulse mt-4">
-                                Vote recorded! Waiting for others...
-                            </div>
-                        )}
-                        {userRoleState.amIBattling && (
-                            <div id="battling-message" data-status="battling" className="text-center text-orange-600 font-bold animate-pulse mt-4 bg-orange-100 p-2 rounded">
-                                You are in this battle! You cannot vote. Spectating...
-                            </div>
-                        )}
-                        {userRoleState.amISupporting && (
-                            <div id="supporting-message" data-status="supporting" className="text-center text-purple-600 font-bold animate-pulse mt-4 bg-purple-100 p-2 rounded">
-                                Your Captain is fighting! You cannot vote. Spectating...
-                            </div>
-                        )}
-                    </>
-                ) : null}
+                        </Button>
+                    );
+                })}
             </div>
+
+            {/* Simple status messages */}
+            {votingState?.hasVoted && !votingState?.isReveal && (
+                <div className="text-center text-sm text-gray-600 mt-4 p-3 bg-green-50 rounded-lg">
+                    ✓ Vote recorded
+                </div>
+            )}
+
+            {votingState?.isReveal && (
+                <div className="text-center text-sm text-blue-600 mt-4 p-4 bg-blue-50 rounded-lg border border-blue-200">
+                    <p className="font-semibold">👀 Check the main screen for results!</p>
+                </div>
+            )}
+
+            {userRoleState.amIBattling && !votingState?.hasVoted && (
+                <div className="text-center text-sm text-orange-600 mt-4 p-3 bg-orange-50 rounded-lg">
+                    You&apos;re battling - can&apos;t vote
+                </div>
+            )}
+
+            {/* VIP Controls */}
+            {isVip && votingState?.isReveal && (
+                <Button
+                    id="next-battle-button"
+                    onClick={() => playerId && nextBattle({ gameId: game._id, playerId, sessionToken }).catch((e) => showError("action-failed", (e as Error).message))}
+                    className="w-full mt-4 bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-700 hover:to-indigo-700 text-white font-bold py-4 rounded-xl shadow-lg"
+                    size="lg"
+                >
+                    Next Battle →
+                </Button>
+            )}
         </div>
     );
 }

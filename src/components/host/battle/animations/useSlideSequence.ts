@@ -6,20 +6,20 @@ interface SlideSequenceOptions {
   answerOrder: BattleState["answerOrder"];
 }
 
-// Percentage-based positioning for responsive scaling
-const EDGE_PERCENT = 0.02; // 2% from edge
-const BOTTOM_PERCENT = 0.08; // 8% from bottom
+// Configuration
 const SCALE = 0.65;
 const MOBILE_BREAKPOINT = 768;
+const HORIZONTAL_GAP = 20; // Gap between answer and fighter (pixels)
+const VERTICAL_OFFSET = 0; // Position at fighter bottom (can overlap)
 
 /**
- * createSlideTimeline - Slides answers from center to bottom corners
+ * createSlideTimeline - Slides answers from center to positions beside fighters
  *
- * Uses percentage-based positioning relative to arena size for responsive scaling.
- * - Left answer slides to bottom-left corner (or bottom-bottom on mobile)
- * - Right answer slides to bottom-right corner (or top-bottom on mobile)
- * - VS badge fades out
- * - Both answers scale down
+ * Strategy:
+ * 1. Get fighter positions from refs
+ * 2. Position answers at SAME vertical level (aligned to fighters)
+ * 3. Left answer goes beside left fighter, right answer beside right fighter
+ * 4. Ensure answers stay within screen bounds
  */
 export function createSlideTimeline({ refs, answerOrder }: SlideSequenceOptions): gsap.core.Timeline {
   const timeline = gsap.timeline();
@@ -33,8 +33,13 @@ export function createSlideTimeline({ refs, answerOrder }: SlideSequenceOptions)
   const arenaRect = refs.arena.current?.getBoundingClientRect();
   const answer1Rect = refs.answer1.current?.getBoundingClientRect();
   const answer2Rect = refs.answer2.current?.getBoundingClientRect();
+  const leftFighterRect = refs.leftFighter.current?.getBoundingClientRect();
+  const rightFighterRect = refs.rightFighter.current?.getBoundingClientRect();
 
-  if (arenaRect && answer1Rect && answer2Rect) {
+  if (arenaRect && answer1Rect && answer2Rect && leftFighterRect && rightFighterRect) {
+    console.log("[createSlideTimeline] Arena:", arenaRect.width, "x", arenaRect.height);
+    console.log("[createSlideTimeline] Left fighter:", leftFighterRect.bottom - arenaRect.top);
+    console.log("[createSlideTimeline] Right fighter:", rightFighterRect.bottom - arenaRect.top);
     const isMobile = arenaRect.width < MOBILE_BREAKPOINT;
 
     // Determine which answer goes left vs right (or top vs bottom on mobile) based on battler assignment
@@ -55,31 +60,39 @@ export function createSlideTimeline({ refs, answerOrder }: SlideSequenceOptions)
     const rightScaledWidth = rightAnswerRect.width * SCALE;
     const rightScaledHeight = rightAnswerRect.height * SCALE;
 
-    // Calculate padding based on arena size (percentage-based)
-    const edgePadding = arenaRect.width * EDGE_PERCENT;
-    const bottomPadding = arenaRect.height * BOTTOM_PERCENT;
+    // Fighter positions relative to arena
+    const leftFighterBottom = leftFighterRect.bottom - arenaRect.top;
+    const rightFighterBottom = rightFighterRect.bottom - arenaRect.top;
 
-    let leftTargetCenterX, leftTargetCenterY, rightTargetCenterX, rightTargetCenterY;
+    // Calculate SAME vertical position for BOTH answers (aligned by bottom edge)
+    // Start with the lower fighter's bottom
+    const fighterBaseline = Math.max(leftFighterBottom, rightFighterBottom);
+
+    // Use the LARGER of the two scaled heights to ensure neither goes off screen
+    const maxScaledHeight = Math.max(leftScaledHeight, rightScaledHeight);
+
+    // Calculate target bottom position (same for both)
+    const targetBottom = fighterBaseline + VERTICAL_OFFSET;
+
+    // Ensure it doesn't go off screen (keep 50px from bottom for padding)
+    const safeTargetBottom = Math.min(targetBottom, arenaRect.height - 50);
+
+    // Convert bottom position to center Y for each answer (accounting for their individual heights)
+    const leftTargetCenterY = safeTargetBottom - leftScaledHeight / 2;
+    const rightTargetCenterY = safeTargetBottom - rightScaledHeight / 2;
+
+    let leftTargetCenterX, rightTargetCenterX;
 
     if (isMobile) {
-      // Mobile: Stack Vertically at bottom
-      // Right (second) on top of Left (first)? Or vice versa.
-      // Let's put Left (First) at very bottom, Right (Second) above it.
-      const gap = 10;
-
+      // Mobile: Stack Vertically, centered
       leftTargetCenterX = arenaRect.width / 2;
-      leftTargetCenterY = arenaRect.height - bottomPadding - leftScaledHeight / 2;
-
       rightTargetCenterX = arenaRect.width / 2;
-      rightTargetCenterY = leftTargetCenterY - leftScaledHeight / 2 - gap - rightScaledHeight / 2;
-
     } else {
-      // Desktop: Split Corners
-      leftTargetCenterX = edgePadding + leftScaledWidth / 2;
-      leftTargetCenterY = arenaRect.height - bottomPadding - leftScaledHeight / 2;
+      // Desktop: Bottom corners (very close to edges to align with avatars)
+      const edgePadding = 20; // Reduced to match avatar edge positioning
 
+      leftTargetCenterX = edgePadding + leftScaledWidth / 2;
       rightTargetCenterX = arenaRect.width - edgePadding - rightScaledWidth / 2;
-      rightTargetCenterY = arenaRect.height - bottomPadding - rightScaledHeight / 2;
     }
 
     // Calculate offsets from current position to target

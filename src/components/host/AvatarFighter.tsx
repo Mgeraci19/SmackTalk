@@ -51,11 +51,12 @@ export const AvatarFighter = forwardRef<HTMLDivElement, AvatarFighterProps>(
     const innerRef = useRef<HTMLDivElement>(null);
     const idleAnimationRef = useRef<gsap.core.Tween | null>(null);
 
-    // Size classes
+    // Size classes - responsive with mobile breakpoints
     const sizeClasses = {
       small: "w-24 h-24",
       medium: "w-32 h-32",
-      large: "w-48 h-48",
+      // Large: 2x bigger - 384px on desktop, scales down on mobile
+      large: "w-64 h-64 md:w-80 md:h-80 lg:w-96 lg:h-96",
     };
 
     // Idle breathing animation

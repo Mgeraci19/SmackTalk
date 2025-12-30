@@ -13,12 +13,12 @@ import { WritingView } from "@/components/game/WritingView";
 import { VotingView } from "@/components/game/VotingView";
 import { RoundResultsView } from "@/components/game/RoundResultsView";
 import { GameResultsView } from "@/components/game/GameResultsView";
-import { DebugPanel } from "@/components/game/DebugPanel";
+import { MobileHeader } from "@/components/game/MobileHeader";
+import { ErrorBanner } from "@/components/ui/error-banner";
 import { GameStatusBanner } from "@/components/game/GameStatusBanner";
 import { GameState } from "@/lib/types";
 import { useLLMContext } from "@/hooks/useLLMContext";
 import { useErrorState } from "@/hooks/useErrorState";
-import { ErrorBanner } from "@/components/ui/error-banner";
 
 function RoomContent() {
     const searchParams = useSearchParams();
@@ -40,8 +40,6 @@ function RoomContent() {
     const submitVote = useMutation(api.actions.submitVote);
     const nextBattle = useMutation(api.engine.nextBattle);
     const nextRound = useMutation(api.engine.nextRound);
-
-    const [showDebug, setShowDebug] = useState(false);
 
     // Generate LLM-friendly context and error state HOOKS MUST BE AT TOP
     const llmContext = useLLMContext(game, playerId);
@@ -115,21 +113,15 @@ function RoomContent() {
     return (
         <div
             id="room-container"
-            data-game-id={game._id}
-            data-room-code={game.roomCode}
-            data-game-phase={game.status}
-            data-current-round={game.currentRound}
-            data-max-rounds={game.maxRounds}
-            data-round-status={game.roundStatus}
-            data-is-vip={isVip}
-            data-player-role={myPlayer?.role}
-            data-player-hp={myPlayer?.hp}
-            data-has-error={!!error}
+            // ... existing attributes ...
             className="p-4 max-w-2xl mx-auto space-y-4 min-h-screen bg-gray-50 relative"
         >
             <ErrorBanner error={error} onDismiss={clearError} />
 
-            {/* LLM Context - Hidden JSON for programmatic access (safe: uses data attribute, not innerHTML) */}
+            {/* NEW PERSISTENT HEADER */}
+            <MobileHeader game={game} playerId={playerId} />
+
+            {/* LLM Context ... */}
             <div
                 id="llm-game-context"
                 data-context={JSON.stringify(llmContext)}
@@ -140,24 +132,9 @@ function RoomContent() {
             {/* Accessible Game Status Banner */}
             <GameStatusBanner game={game} playerId={playerId} />
 
-            {/* DEBUG PANEL */}
-            <div id="debug-panel-container" className="mb-2">
-                <Button
-                    id="toggle-debug-button"
-                    data-testid="toggle-debug-button"
-                    data-action="toggle-debug"
-                    data-debug-visible={showDebug}
-                    variant="outline"
-                    size="sm"
-                    onClick={() => setShowDebug(!showDebug)}
-                    className="w-full text-xs opacity-50 hover:opacity-100"
-                >
-                    {showDebug ? "Hide Debug Panel" : "Show Debug Panel"}
-                </Button>
-                {showDebug && (
-                    <DebugPanel game={game} />
-                )}
-            </div>
+            {/* Removed Debug Panel code... */}
+
+
 
             <Card id="game-card">
                 <div className="p-6">

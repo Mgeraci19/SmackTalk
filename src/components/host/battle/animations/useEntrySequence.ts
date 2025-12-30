@@ -9,6 +9,7 @@ interface UseEntrySequenceOptions {
   rightBattler: BattlerInfo | null;
   promptText?: string;
   hasStartedRef: React.MutableRefObject<boolean>;
+  promptId?: string;
 }
 
 /**
@@ -27,9 +28,16 @@ export function useEntrySequence({
   rightBattler,
   promptText,
   hasStartedRef,
+  promptId,
 }: UseEntrySequenceOptions) {
   useEffect(() => {
-    if (!leftBattler || !rightBattler || !promptText || hasStartedRef.current) return;
+    if (!leftBattler || !rightBattler || !promptText) {
+      return;
+    }
+
+    if (hasStartedRef.current) {
+      return;
+    }
 
     let timeline: gsap.core.Timeline | null = null;
 
@@ -67,6 +75,7 @@ export function useEntrySequence({
       timeline.to(refs.answer1.current, {
         opacity: 1,
         scale: 1,
+        visibility: "visible",
         duration: 0.3,
         ease: "back.out(2)",
       });
@@ -79,6 +88,7 @@ export function useEntrySequence({
       timeline.to(refs.answer2.current, {
         opacity: 1,
         scale: 1,
+        visibility: "visible",
         duration: 0.3,
         ease: "back.out(2)",
       });
@@ -91,5 +101,6 @@ export function useEntrySequence({
       cancelAnimationFrame(frameId);
       timeline?.kill();
     };
-  }, [leftBattler, rightBattler, promptText, refs, actions, hasStartedRef]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [promptId]); // Only re-run when promptId changes
 }

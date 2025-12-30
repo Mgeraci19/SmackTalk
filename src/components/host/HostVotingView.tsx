@@ -5,6 +5,7 @@ import { GameState } from "@/lib/types";
 import { FighterHealthBar } from "./FighterHealthBar";
 import { BattleArena } from "./BattleArena";
 import { BattleSide } from "./animations/registry/types";
+import { CornerManAssignment } from "./CornerManAssignment";
 
 interface HostVotingViewProps {
   game: GameState;
@@ -21,6 +22,22 @@ export function HostVotingView({ game }: HostVotingViewProps) {
   const [animatedRightHp, setAnimatedRightHp] = useState<number | null>(null);
   const hasInitializedHp = useRef(false);
 
+  // Track damage to show floating numbers
+  const [leftShowDamage, setLeftShowDamage] = useState<number | undefined>(undefined);
+  const [rightShowDamage, setRightShowDamage] = useState<number | undefined>(undefined);
+
+  // Track corner man assignment display
+  const [showCornerManAssignment, setShowCornerManAssignment] = useState(false);
+  const [cornerManAssignment, setCornerManAssignment] = useState<{
+    cornerManName: string;
+    cornerManAvatar?: string;
+    champName: string;
+    champAvatar?: string;
+  } | null>(null);
+
+  // Track which players we've already shown corner man assignments for
+  const shownCornerManRef = useRef<Set<string>>(new Set());
+
   // Get current prompt and its submissions
   const currentPrompt = game.prompts?.find((p) => p._id === game.currentPromptId);
 
@@ -34,8 +51,8 @@ export function HostVotingView({ game }: HostVotingViewProps) {
     [game.votes, game.currentPromptId]
   );
 
-  // Calculate vote counts and winner
-  const { voteCounts, maxVotes, totalVotes, votersBySubmission } = useMemo(() => {
+  // Calculate vote counts, winner, and damage
+  const { voteCounts, maxVotes, totalVotes, votersBySubmission, leftDamage, rightDamage } = useMemo(() => {
     const counts: Record<string, number> = {};
     const voters: Record<string, string[]> = {};
     let max = 0;
@@ -53,20 +70,73 @@ export function HostVotingView({ game }: HostVotingViewProps) {
       }
     });
 
+    // Calculate total votes first
+    const total = currentVotes.length;
+
+    // Calculate damage based on votes (matches backend logic)
+    const DAMAGE_CAP = 35;
+    let leftDmg = 0;
+    let rightDmg = 0;
+
+    if (currentSubmissions.length === 2 && total > 0) {
+      const leftSubId = currentSubmissions[0]._id as string;
+      const rightSubId = currentSubmissions[1]._id as string;
+      const leftVotesFor = counts[leftSubId] || 0;
+      const rightVotesFor = counts[rightSubId] || 0;
+
+      // Check if it's a tie
+      const isTie = leftVotesFor === rightVotesFor;
+
+      if (isTie) {
+        // Tie: both take 50% of DAMAGE_CAP
+        let damage = 0.5 * DAMAGE_CAP;
+        if (game.currentRound === 4) {
+          damage *= 1.5;
+        }
+        leftDmg = Math.floor(damage);
+        rightDmg = Math.floor(damage);
+      } else {
+        // Non-tie: Only loser takes damage
+        const loserIsLeft = leftVotesFor < rightVotesFor;
+        const loserVotesFor = loserIsLeft ? leftVotesFor : rightVotesFor;
+        const votesAgainst = total - loserVotesFor;
+
+        let damage = (votesAgainst / total) * DAMAGE_CAP;
+        if (game.currentRound === 4) {
+          damage *= 1.5;
+        }
+
+        if (loserIsLeft) {
+          leftDmg = Math.floor(damage);
+          rightDmg = 0;
+        } else {
+          leftDmg = 0;
+          rightDmg = Math.floor(damage);
+        }
+      }
+    }
+
     return {
       voteCounts: counts,
       maxVotes: max,
-      totalVotes: currentVotes.length,
+      totalVotes: total,
       votersBySubmission: voters,
+      leftDamage: leftDmg,
+      rightDamage: rightDmg,
     };
-  }, [currentVotes, game.players]);
+  }, [currentVotes, currentSubmissions, game.players, game.currentRound]);
 
   // Get battlers with all info
   const battlers = useMemo(() => {
+    // Check if it's a tie first
+    const voteCountsList = currentSubmissions.map((sub) => voteCounts[sub._id as string] || 0);
+    const isTie = voteCountsList.length === 2 && voteCountsList[0] === voteCountsList[1];
+
     return currentSubmissions.map((sub, index) => {
       const player = game.players.find((p) => p._id === sub.playerId);
       const voteCount = voteCounts[sub._id as string] || 0;
-      const isWinner = isReveal && totalVotes > 0 && voteCount === maxVotes && voteCount > 0;
+      // Only mark as winner if NOT a tie and has max votes
+      const isWinner = !isTie && isReveal && totalVotes > 0 && voteCount === maxVotes && voteCount > 0;
       const voters = votersBySubmission[sub._id as string] || [];
       return {
         ...sub,
@@ -97,6 +167,7 @@ export function HostVotingView({ game }: HostVotingViewProps) {
         voters: leftBattler.voters,
         hp: leftBattler.player?.hp || 100,
         maxHp: leftBattler.player?.maxHp || 100,
+        submissionTime: leftBattler._creationTime,
       }
     : null;
 
@@ -111,6 +182,7 @@ export function HostVotingView({ game }: HostVotingViewProps) {
         voters: rightBattler.voters,
         hp: rightBattler.player?.hp || 100,
         maxHp: rightBattler.player?.maxHp || 100,
+        submissionTime: rightBattler._creationTime,
       }
     : null;
 
@@ -126,18 +198,66 @@ export function HostVotingView({ game }: HostVotingViewProps) {
     }
   }, [leftBattler?.player, rightBattler?.player]);
 
+  // Watch for corner man assignments reactively (rounds 1 and 2 only)
+  useEffect(() => {
+    if (game.currentRound !== 1 && game.currentRound !== 2) return;
+    if (!battleComplete) return;
+
+    // Check if any of the current battlers became a corner man
+    const leftPlayer = game.players.find((p) => p._id === leftBattler?.player?._id);
+    const rightPlayer = game.players.find((p) => p._id === rightBattler?.player?._id);
+
+    let newCornerMan, champ;
+
+    // Check left player
+    if (leftPlayer?.role === "CORNER_MAN" && leftPlayer.teamId && !shownCornerManRef.current.has(leftPlayer._id)) {
+      newCornerMan = leftPlayer;
+      champ = game.players.find((p) => p._id === leftPlayer.teamId);
+      console.log("[Corner Man Detected]", newCornerMan.name, "supporting", champ?.name);
+    }
+    // Check right player
+    else if (rightPlayer?.role === "CORNER_MAN" && rightPlayer.teamId && !shownCornerManRef.current.has(rightPlayer._id)) {
+      newCornerMan = rightPlayer;
+      champ = game.players.find((p) => p._id === rightPlayer.teamId);
+      console.log("[Corner Man Detected]", newCornerMan.name, "supporting", champ?.name);
+    }
+
+    if (newCornerMan && champ) {
+      // Mark this player as shown
+      shownCornerManRef.current.add(newCornerMan._id);
+
+      setCornerManAssignment({
+        cornerManName: newCornerMan.name,
+        cornerManAvatar: newCornerMan.avatar,
+        champName: champ.name,
+        champAvatar: champ.avatar,
+      });
+      // Show immediately
+      setShowCornerManAssignment(true);
+    }
+  }, [game.currentRound, game.players, leftBattler, rightBattler, battleComplete]);
+
   // Callbacks
   const handleBattleComplete = useCallback(() => {
     setBattleComplete(true);
   }, []);
 
   const handleDamageApplied = useCallback((side: BattleSide, damage: number) => {
-    console.log(`[HostVotingView] Damage applied to ${side}: ${damage}`);
     // Update local animated HP immediately for visual feedback
     if (side === "left") {
       setAnimatedLeftHp((prev) => Math.max(0, (prev ?? 100) - damage));
+      if (damage > 0) {
+        setLeftShowDamage(damage);
+        // Clear damage display after animation completes
+        setTimeout(() => setLeftShowDamage(undefined), 600);
+      }
     } else {
       setAnimatedRightHp((prev) => Math.max(0, (prev ?? 100) - damage));
+      if (damage > 0) {
+        setRightShowDamage(damage);
+        // Clear damage display after animation completes
+        setTimeout(() => setRightShowDamage(undefined), 600);
+      }
     }
   }, []);
 
@@ -145,6 +265,12 @@ export function HostVotingView({ game }: HostVotingViewProps) {
   useEffect(() => {
     setBattleComplete(false);
     hasInitializedHp.current = false;
+    // Clear damage displays
+    setLeftShowDamage(undefined);
+    setRightShowDamage(undefined);
+    // Clear corner man assignment
+    setShowCornerManAssignment(false);
+    setCornerManAssignment(null);
     // Re-initialize HP from current player data
     if (leftBattler?.player && rightBattler?.player) {
       setAnimatedLeftHp(leftBattler.player.hp ?? 100);
@@ -152,6 +278,11 @@ export function HostVotingView({ game }: HostVotingViewProps) {
       hasInitializedHp.current = true;
     }
   }, [game.currentPromptId, leftBattler?.player, rightBattler?.player]);
+
+  // Reset corner man tracking when round changes
+  useEffect(() => {
+    shownCornerManRef.current.clear();
+  }, [game.currentRound]);
 
   return (
     <div
@@ -162,7 +293,7 @@ export function HostVotingView({ game }: HostVotingViewProps) {
       className="flex flex-col h-screen p-4 overflow-hidden"
     >
       {/* Header Bar: HP bars on sides, Round in center */}
-      <div className="flex items-start gap-4 mb-2 flex-shrink-0">
+      <div className="flex items-start gap-4 mb-0 flex-shrink-0">
         {/* Left HP Bar */}
         <div className="w-72 flex-shrink-0">
           {leftBattler?.player && (
@@ -173,6 +304,7 @@ export function HostVotingView({ game }: HostVotingViewProps) {
               side="left"
               isWinner={battleComplete && leftBattler.isWinner}
               avatar={leftBattler.player.avatar}
+              showDamage={leftShowDamage}
             />
           )}
         </div>
@@ -192,6 +324,7 @@ export function HostVotingView({ game }: HostVotingViewProps) {
               side="right"
               isWinner={battleComplete && rightBattler.isWinner}
               avatar={rightBattler.player.avatar}
+              showDamage={rightShowDamage}
             />
           )}
         </div>
@@ -205,6 +338,8 @@ export function HostVotingView({ game }: HostVotingViewProps) {
           isReveal={isReveal}
           promptId={game.currentPromptId}
           promptText={currentPrompt?.text}
+          leftDamage={leftDamage}
+          rightDamage={rightDamage}
           onBattleComplete={handleBattleComplete}
           onDamageApplied={handleDamageApplied}
         />
@@ -217,6 +352,17 @@ export function HostVotingView({ game }: HostVotingViewProps) {
             {winner ? `${winner.player?.name} wins this round!` : "It's a tie!"}
           </div>
         </div>
+      )}
+
+      {/* Corner Man Assignment - Shows when a player gets KO'd and becomes a corner man */}
+      {showCornerManAssignment && cornerManAssignment && (
+        <CornerManAssignment
+          cornerManName={cornerManAssignment.cornerManName}
+          cornerManAvatar={cornerManAssignment.cornerManAvatar}
+          champName={cornerManAssignment.champName}
+          champAvatar={cornerManAssignment.champAvatar}
+          onComplete={() => setShowCornerManAssignment(false)}
+        />
       )}
     </div>
   );

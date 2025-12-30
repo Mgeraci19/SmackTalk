@@ -9,6 +9,8 @@ interface AttackSequenceOptions {
   actions: BattleActions;
   leftBattler: BattlerInfo;
   rightBattler: BattlerInfo;
+  leftDamage: number;
+  rightDamage: number;
   onDamageApplied?: (side: BattleSide, damage: number) => void;
   onComplete?: () => void;
 }
@@ -25,6 +27,8 @@ export function playWinnerAttack({
   actions,
   leftBattler,
   rightBattler,
+  leftDamage,
+  rightDamage,
   onDamageApplied,
   onComplete,
 }: AttackSequenceOptions): void {
@@ -32,9 +36,8 @@ export function playWinnerAttack({
   const loser = leftBattler.isWinner ? rightBattler : leftBattler;
   const winnerIsLeft = leftBattler.isWinner;
 
-  const totalVotes = leftBattler.voteCount + rightBattler.voteCount;
-  const loserVotes = winnerIsLeft ? rightBattler.voteCount : leftBattler.voteCount;
-  const damage = totalVotes > 0 ? Math.floor((loserVotes / totalVotes) * DAMAGE_CAP) : 0;
+  // Use exact damage passed from parent (calculated from votes)
+  const damage = winnerIsLeft ? rightDamage : leftDamage;
 
   // Check if this will KO the loser
   const loserNewHp = (loser.hp || 100) - damage;
@@ -90,15 +93,16 @@ export function playWinnerAttack({
       ease: "power2.out",
     });
 
-    // Hurt flash on loser
+    // Hurt flash on loser + damage callback (0.2s after attack starts)
     attackTimeline.call(() => {
       if (winnerIsLeft) {
         actions.setRightFighterState("hurt");
       } else {
         actions.setLeftFighterState("hurt");
       }
+      // Call damage callback 0.2s after attack animation starts
       onDamageApplied?.(winnerIsLeft ? "right" : "left", damage);
-    }, [], "-=0.1");
+    }, [], "+=0.05"); // Happens 0.2s total from start (0.15s lunge + 0.05s)
   } else {
     // Normal attack (not KO) - use simpler animation
     const attackTimeline = gsap.timeline({
@@ -122,7 +126,7 @@ export function playWinnerAttack({
       ease: "power2.out",
     });
 
-    // Hurt flash
+    // Hurt flash + damage callback (0.2s after attack starts)
     attackTimeline.call(() => {
       if (winnerIsLeft) {
         actions.setRightFighterState("hurt");
@@ -131,7 +135,8 @@ export function playWinnerAttack({
         actions.setLeftFighterState("hurt");
         setTimeout(() => actions.setLeftFighterState("idle"), 200);
       }
+      // Call damage callback 0.2s after attack animation starts
       onDamageApplied?.(winnerIsLeft ? "right" : "left", damage);
-    }, [], "-=0.2");
+    }, [], "+=0.05"); // Happens 0.2s total from start (0.15s lunge + 0.05s)
   }
 }

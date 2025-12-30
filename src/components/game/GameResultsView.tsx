@@ -21,27 +21,13 @@ export function GameResultsView({ game, isVip }: GameResultsViewProps) {
             className="text-center p-10 bg-green-100 rounded"
         >
             <h2 id="game-over-title" className="text-3xl font-bold">GAME OVER</h2>
+            {/* HIDE FINAL RESULTS ON MOBILE */}
             <div
-                id="final-standings-list"
-                data-testid="final-standings-list"
-                className="mt-8 space-y-2"
+                id="final-results-hidden-message"
+                className="mt-8 p-8 bg-green-50 rounded-lg border-2 border-green-200"
             >
-                {game.players
-                    .sort((a, b) => (b.hp ?? 100) - (a.hp ?? 100))
-                    .map((p, i) => (
-                        <div
-                            key={p._id}
-                            id={`final-standing-${i + 1}`}
-                            data-player-id={p._id}
-                            data-rank={i + 1}
-                            data-hp={p.hp ?? 100}
-                            data-is-winner={i === 0}
-                            className="text-xl flex justify-between border-b pb-2"
-                        >
-                            <span>#{i + 1} {p.name}</span>
-                            <span className="font-bold">{p.hp ?? 100} HP</span>
-                        </div>
-                    ))}
+                <h3 className="text-xl font-bold text-green-800 mb-2">👀 Look at the Main Screen!</h3>
+                <p className="text-gray-600">The winner is crowned on the host display!</p>
             </div>
             {isVip && (
                 <Button
