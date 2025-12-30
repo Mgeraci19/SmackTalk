@@ -138,6 +138,7 @@ export const AvatarFighter = forwardRef<HTMLDivElement, AvatarFighterProps>(
         <div
           ref={innerRef}
           className={`
+            relative
             ${sizeClasses[size]}
             rounded-xl
             border-4
@@ -147,6 +148,18 @@ export const AvatarFighter = forwardRef<HTMLDivElement, AvatarFighterProps>(
             transition-shadow duration-300
           `}
         >
+          {/* Name Tag - Small tag at top of avatar */}
+          <div
+            className={`
+              absolute top-2 left-1/2 -translate-x-1/2 z-10
+              px-2 py-0.5 rounded text-xs font-bold
+              ${isWinner ? "bg-yellow-500 text-black" : "bg-black/70 text-white"}
+              backdrop-blur-sm
+            `}
+          >
+            {name}
+          </div>
+
           {avatar ? (
             <img
               src={avatar}
@@ -158,31 +171,21 @@ export const AvatarFighter = forwardRef<HTMLDivElement, AvatarFighterProps>(
               ?
             </div>
           )}
+
+          {/* Winner Badge - inside avatar box */}
+          {isWinner && (
+            <div className="absolute bottom-2 left-1/2 -translate-x-1/2 bg-yellow-500 text-black px-2 py-0.5 rounded text-xs font-bold shadow-lg">
+              ★ WINNER ★
+            </div>
+          )}
+
+          {/* KO Indicator */}
+          {isKO && (
+            <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 text-4xl font-bold text-red-500 rotate-12">
+              K.O.
+            </div>
+          )}
         </div>
-
-        {/* Name Tag */}
-        <div
-          className={`
-            mt-3 px-4 py-1 rounded-full text-lg font-bold
-            ${isWinner ? "bg-yellow-500 text-black" : "bg-gray-700 text-white"}
-          `}
-        >
-          {name}
-        </div>
-
-        {/* Winner Badge */}
-        {isWinner && (
-          <div className="absolute -top-8 left-1/2 -translate-x-1/2 bg-yellow-500 text-black px-3 py-1 rounded-full text-sm font-bold animate-bounce shadow-lg">
-            ★ WINNER ★
-          </div>
-        )}
-
-        {/* KO Indicator */}
-        {isKO && (
-          <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 text-4xl font-bold text-red-500 rotate-12">
-            K.O.
-          </div>
-        )}
       </div>
     );
   }

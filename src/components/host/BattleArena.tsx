@@ -1,6 +1,6 @@
 "use client";
 
-import { useRef, useEffect, useState } from "react";
+import { useRef, useEffect, useState, useMemo } from "react";
 import { AvatarFighter, FighterState } from "./AvatarFighter";
 import { useBattleSequence } from "./animations/sequences";
 import { BattleSide } from "./animations/registry/types";
@@ -19,22 +19,33 @@ interface BattlerInfo {
 }
 
 interface BattleArenaProps {
-  /** Left side battler info */
   leftBattler: BattlerInfo | null;
-  /** Right side battler info */
   rightBattler: BattlerInfo | null;
-  /** Whether we're in reveal phase */
   isReveal: boolean;
-  /** Current prompt ID (for reset detection) */
   promptId?: string;
-  /** Callback when battle animation completes */
   onBattleComplete?: () => void;
-  /** Callback when damage should be applied */
   onDamageApplied?: (side: BattleSide, damage: number) => void;
 }
 
+type RevealPhase =
+  | "waiting"      // Waiting for answers
+  | "slam1"        // First answer slamming in
+  | "slam2"        // Second answer slamming in
+  | "voting"       // Players voting
+  | "sliding"      // Answers sliding to sides
+  | "revealing"    // Vote counts ticking up
+  | "attacking"    // Attack animation
+  | "complete";    // Done
+
 /**
- * BattleArena - Avatar-centric battle display with Street Fighter-style animations
+ * BattleArena - Phased battle display
+ *
+ * Flow:
+ * 1. Answers slam into center (anonymous, randomized order)
+ * 2. Players vote
+ * 3. Answers slide to their fighter sides (reveal who wrote what)
+ * 4. Vote counts tick up, winner highlighted
+ * 5. Quick attack animation
  */
 export function BattleArena({
   leftBattler,
@@ -48,35 +59,46 @@ export function BattleArena({
   const leftFighterRef = useRef<HTMLDivElement>(null);
   const rightFighterRef = useRef<HTMLDivElement>(null);
   const arenaRef = useRef<HTMLDivElement>(null);
-  const vsRef = useRef<HTMLDivElement>(null);
-  const leftAnswerRef = useRef<HTMLDivElement>(null);
-  const rightAnswerRef = useRef<HTMLDivElement>(null);
+  const answer1Ref = useRef<HTMLDivElement>(null);
+  const answer2Ref = useRef<HTMLDivElement>(null);
 
-  // Fighter states for visual feedback
+  // Phase tracking
+  const [phase, setPhase] = useState<RevealPhase>("waiting");
+  const [displayedVotes, setDisplayedVotes] = useState({ left: 0, right: 0 });
+
+  // Fighter states
   const [leftState, setLeftState] = useState<FighterState>("idle");
   const [rightState, setRightState] = useState<FighterState>("idle");
-  const [showResults, setShowResults] = useState(false);
 
-  // Track if we've animated this prompt
-  const hasAnimatedRef = useRef(false);
+  // Track if we've started the sequence for this prompt
+  const hasStartedRef = useRef(false);
+  const hasRevealedRef = useRef(false);
 
-  // Store callbacks in refs to avoid dependency issues
+  // Randomize answer order (but remember mapping)
+  const answerOrder = useMemo(() => {
+    if (!leftBattler || !rightBattler) return { first: "left", second: "right" };
+    // Randomly decide which answer shows first
+    return Math.random() > 0.5
+      ? { first: "left" as const, second: "right" as const }
+      : { first: "right" as const, second: "left" as const };
+  }, [promptId]); // Re-randomize on prompt change
+
+  // Store callbacks in refs
   const onBattleCompleteRef = useRef(onBattleComplete);
   const onDamageAppliedRef = useRef(onDamageApplied);
   onBattleCompleteRef.current = onBattleComplete;
   onDamageAppliedRef.current = onDamageApplied;
 
-  // Initialize battle sequence hook with slower animations
-  const { state: battleState, actions: battleActions } = useBattleSequence({
+  // Battle sequence hook for attack animation
+  const { actions: battleActions } = useBattleSequence({
     leftFighter: leftFighterRef,
     rightFighter: rightFighterRef,
     arenaContainer: arenaRef,
     config: {
-      speedMultiplier: 0.6, // Slow down animations by 40%
-      shakeIntensity: 1.2,  // Slightly more dramatic shakes
+      speedMultiplier: 0.8, // Slightly faster for the quick attack
+      shakeIntensity: 1.2,
     },
     onDamageApplied: (side, damage) => {
-      // Flash hurt state on defender
       if (side === "left") {
         setLeftState("hurt");
         setTimeout(() => setLeftState("idle"), 200);
@@ -87,88 +109,162 @@ export function BattleArena({
       onDamageAppliedRef.current?.(side, damage);
     },
     onSequenceComplete: () => {
-      // Set final states based on current battler data
-      setShowResults(true);
+      setPhase("complete");
       onBattleCompleteRef.current?.();
-    },
-    onPhaseChange: (phase) => {
-      if (phase === "attacking") {
-        setLeftState("attacking");
-      }
     },
   });
 
-  // Store actions in ref to avoid dependency issues
   const battleActionsRef = useRef(battleActions);
   battleActionsRef.current = battleActions;
 
-  // Reset when prompt changes
+  // Get answer data based on order
+  const firstAnswer = answerOrder.first === "left" ? leftBattler : rightBattler;
+  const secondAnswer = answerOrder.second === "left" ? leftBattler : rightBattler;
+
+  // Reset on prompt change
   useEffect(() => {
-    hasAnimatedRef.current = false;
+    hasStartedRef.current = false;
+    hasRevealedRef.current = false;
+    setPhase("waiting");
+    setDisplayedVotes({ left: 0, right: 0 });
     setLeftState("idle");
     setRightState("idle");
-    setShowResults(false);
     battleActionsRef.current.stop();
 
     // Reset positions
     if (leftFighterRef.current) gsap.set(leftFighterRef.current, { x: 0, y: 0, scale: 1, rotation: 0, opacity: 1 });
     if (rightFighterRef.current) gsap.set(rightFighterRef.current, { x: 0, y: 0, scale: 1, rotation: 0, opacity: 1 });
-    if (vsRef.current) gsap.set(vsRef.current, { opacity: 1, scale: 1 });
-    if (leftAnswerRef.current) gsap.set(leftAnswerRef.current, { opacity: 1, y: 0 });
-    if (rightAnswerRef.current) gsap.set(rightAnswerRef.current, { opacity: 1, y: 0 });
+    if (answer1Ref.current) gsap.set(answer1Ref.current, { opacity: 0, scale: 0.5, x: 0, y: 0 });
+    if (answer2Ref.current) gsap.set(answer2Ref.current, { opacity: 0, scale: 0.5, x: 0, y: 0 });
   }, [promptId]);
 
-  // Trigger battle on reveal
+  // Start slam-in sequence when we have battlers
   useEffect(() => {
-    if (!isReveal || hasAnimatedRef.current || !leftBattler || !rightBattler) return;
+    if (!leftBattler || !rightBattler || hasStartedRef.current) return;
+    hasStartedRef.current = true;
 
-    hasAnimatedRef.current = true;
+    const timeline = gsap.timeline();
 
-    // Determine winner
-    const winner = leftBattler.isWinner ? leftBattler : rightBattler.isWinner ? rightBattler : null;
-    const isTie = !winner && leftBattler.voteCount === rightBattler.voteCount;
-
-    // Fade out VS badge first
-    gsap.to(vsRef.current, {
-      opacity: 0,
-      scale: 0.5,
+    // Slam in first answer
+    setPhase("slam1");
+    timeline.to(answer1Ref.current, {
+      opacity: 1,
+      scale: 1,
       duration: 0.3,
-      ease: "power2.in",
-      onComplete: () => {
-        if (winner) {
-          // Calculate damage based on votes
-          const damage = winner.voteCount * 5; // 5 damage per vote
-          const isKO = false; // Could check if HP would go to 0
-
-          // Update states for winner/loser
-          if (leftBattler.isWinner) {
-            setLeftState("attacking");
-          } else {
-            setRightState("attacking");
-          }
-
-          // Play battle animation
-          battleActionsRef.current.playBattle({
-            winnerId: winner.id,
-            winnerSide: leftBattler.isWinner ? "left" : "right",
-            loserId: leftBattler.isWinner ? rightBattler.id : leftBattler.id,
-            loserSide: leftBattler.isWinner ? "right" : "left",
-            damage,
-            isKO,
-            voteCount: winner.voteCount,
-          });
-        } else if (isTie) {
-          // Just show results for tie
-          setShowResults(true);
-          onBattleCompleteRef.current?.();
-        }
-      },
+      ease: "back.out(2)",
     });
-  }, [isReveal, leftBattler, rightBattler]);
 
-  // Update final states when battle completes and we have results
+    // Pause for reading
+    timeline.to({}, { duration: 2.5 });
+
+    // Slam in second answer
+    timeline.call(() => setPhase("slam2"));
+    timeline.to(answer2Ref.current, {
+      opacity: 1,
+      scale: 1,
+      duration: 0.3,
+      ease: "back.out(2)",
+    });
+
+    // Move to voting phase
+    timeline.call(() => setPhase("voting"), [], "+=0.5");
+  }, [leftBattler, rightBattler]);
+
+  // Handle reveal sequence
   useEffect(() => {
-    if (showResults && leftBattler && rightBattler) {
+    if (!isReveal || hasRevealedRef.current || !leftBattler || !rightBattler) return;
+    if (phase !== "voting") return; // Wait until voting phase
+
+    hasRevealedRef.current = true;
+
+    const timeline = gsap.timeline();
+
+    // Calculate slide positions
+    const arenaWidth = arenaRef.current?.offsetWidth || 800;
+    const slideDistance = arenaWidth / 3;
+
+    // Phase: Sliding
+    setPhase("sliding");
+
+    // Slide answers to their sides
+    const leftAnswerRef = answerOrder.first === "left" ? answer1Ref : answer2Ref;
+    const rightAnswerRef = answerOrder.first === "right" ? answer1Ref : answer2Ref;
+
+    timeline.to(leftAnswerRef.current, {
+      x: -slideDistance,
+      duration: 0.5,
+      ease: "power2.out",
+    }, 0);
+
+    timeline.to(rightAnswerRef.current, {
+      x: slideDistance,
+      duration: 0.5,
+      ease: "power2.out",
+    }, 0);
+
+    // Pause for "who wrote that?!" reaction
+    timeline.to({}, { duration: 1 });
+
+    // Phase: Revealing votes
+    timeline.call(() => setPhase("revealing"));
+
+    // Tick up vote counts
+    const leftVotes = leftBattler.voteCount;
+    const rightVotes = rightBattler.voteCount;
+    const maxVotes = Math.max(leftVotes, rightVotes, 1);
+    const tickDuration = 0.5 / maxVotes;
+
+    for (let i = 1; i <= maxVotes; i++) {
+      timeline.call(() => {
+        setDisplayedVotes({
+          left: Math.min(i, leftVotes),
+          right: Math.min(i, rightVotes),
+        });
+      }, [], `+=${tickDuration}`);
+    }
+
+    // Pause after votes shown
+    timeline.to({}, { duration: 0.5 });
+
+    // Phase: Attacking
+    timeline.call(() => {
+      setPhase("attacking");
+
+      const winner = leftBattler.isWinner ? leftBattler : rightBattler.isWinner ? rightBattler : null;
+
+      if (winner) {
+        // Calculate damage based on votes (match backend logic closer)
+        const totalVotes = leftBattler.voteCount + rightBattler.voteCount;
+        const DAMAGE_CAP = 35;
+        const loserVotes = winner === leftBattler ? rightBattler.voteCount : leftBattler.voteCount;
+        const damage = totalVotes > 0 ? Math.floor((loserVotes / totalVotes) * DAMAGE_CAP) : 0;
+
+        if (leftBattler.isWinner) {
+          setLeftState("attacking");
+        } else {
+          setRightState("attacking");
+        }
+
+        battleActionsRef.current.playBattle({
+          winnerId: winner.id,
+          winnerSide: leftBattler.isWinner ? "left" : "right",
+          loserId: leftBattler.isWinner ? rightBattler.id : leftBattler.id,
+          loserSide: leftBattler.isWinner ? "right" : "left",
+          damage,
+          isKO: false,
+          voteCount: winner.voteCount,
+        });
+      } else {
+        // Tie - just complete
+        setPhase("complete");
+        onBattleCompleteRef.current?.();
+      }
+    });
+  }, [isReveal, phase, leftBattler, rightBattler, answerOrder]);
+
+  // Update final states when complete
+  useEffect(() => {
+    if (phase === "complete" && leftBattler && rightBattler) {
       if (leftBattler.isWinner) {
         setLeftState("victory");
         setRightState("ko");
@@ -177,7 +273,7 @@ export function BattleArena({
         setLeftState("ko");
       }
     }
-  }, [showResults, leftBattler, rightBattler]);
+  }, [phase, leftBattler, rightBattler]);
 
   if (!leftBattler || !rightBattler) {
     return (
@@ -187,14 +283,17 @@ export function BattleArena({
     );
   }
 
+  const showVotes = phase === "revealing" || phase === "attacking" || phase === "complete";
+  const showWinner = phase === "attacking" || phase === "complete";
+
   return (
     <div
       ref={arenaRef}
       className="relative w-full max-w-6xl mx-auto"
-      data-battle-state={battleState.phase}
+      data-phase={phase}
     >
-      {/* Main Battle Area */}
-      <div className="flex items-center justify-between gap-4 mb-8">
+      {/* Avatars Row */}
+      <div className="flex items-center justify-between gap-4 mb-12">
         {/* Left Fighter */}
         <div className="flex-1 flex flex-col items-center">
           <AvatarFighter
@@ -203,18 +302,18 @@ export function BattleArena({
             avatar={leftBattler.avatar}
             side="left"
             state={leftState}
-            isWinner={showResults && leftBattler.isWinner}
+            isWinner={showWinner && leftBattler.isWinner}
             size="large"
           />
         </div>
 
         {/* VS Badge */}
         <div
-          ref={vsRef}
-          className="text-7xl font-bold text-red-500 px-8 z-10"
+          className="text-5xl font-bold text-red-500 px-6"
           style={{
-            textShadow: "0 0 30px rgba(255,0,0,0.6), 0 0 60px rgba(255,0,0,0.3)",
+            textShadow: "0 0 20px rgba(255,0,0,0.5)",
             fontFamily: "'Impact', 'Arial Black', sans-serif",
+            opacity: phase === "waiting" || phase === "slam1" || phase === "slam2" || phase === "voting" ? 1 : 0.3,
           }}
         >
           VS
@@ -228,103 +327,110 @@ export function BattleArena({
             avatar={rightBattler.avatar}
             side="right"
             state={rightState}
-            isWinner={showResults && rightBattler.isWinner}
+            isWinner={showWinner && rightBattler.isWinner}
             size="large"
           />
         </div>
       </div>
 
-      {/* Answer Cards Row */}
-      <div className="flex gap-8 justify-center">
-        {/* Left Answer */}
+      {/* Answers Area - Start centered, slide to sides on reveal */}
+      <div className="relative min-h-[200px]">
+        {/* First Answer (randomized) */}
         <div
-          ref={leftAnswerRef}
-          className={`flex-1 max-w-md rounded-xl p-6 transition-all duration-300 ${
-            showResults && leftBattler.isWinner
-              ? "bg-green-900/40 ring-2 ring-yellow-400"
+          ref={answer1Ref}
+          className={`
+            absolute left-1/2 -translate-x-1/2
+            w-full max-w-lg
+            rounded-xl p-6 mb-4
+            transition-all duration-300
+            ${showWinner && firstAnswer?.isWinner
+              ? "bg-green-900/50 ring-2 ring-yellow-400"
+              : showWinner && !firstAnswer?.isWinner
+              ? "bg-gray-800/50 opacity-70"
               : "bg-gray-800"
-          }`}
+            }
+          `}
+          style={{
+            top: 0,
+            opacity: 0,
+            transform: "translateX(-50%) scale(0.5)"
+          }}
         >
-          <div className="text-xl text-white mb-4">{leftBattler.answer}</div>
+          <div className="text-xl text-white text-center">{firstAnswer?.answer}</div>
 
-          {showResults && (
-            <>
-              <div
-                className={`text-3xl font-bold ${
-                  leftBattler.isWinner ? "text-yellow-400" : "text-gray-500"
-                }`}
-              >
-                {leftBattler.voteCount} {leftBattler.voteCount === 1 ? "vote" : "votes"}
+          {showVotes && (
+            <div className={`text-center mt-3 text-2xl font-bold ${
+              showWinner && firstAnswer?.isWinner ? "text-yellow-400" : "text-gray-400"
+            }`}>
+              {answerOrder.first === "left" ? displayedVotes.left : displayedVotes.right}
+              {" "}vote{(answerOrder.first === "left" ? displayedVotes.left : displayedVotes.right) === 1 ? "" : "s"}
+            </div>
+          )}
+
+          {showVotes && firstAnswer && firstAnswer.voters.length > 0 && (
+            <div className="mt-2 text-center">
+              <div className="text-xs text-gray-500">
+                {firstAnswer.voters.join(", ")}
               </div>
-
-              {leftBattler.voters.length > 0 && (
-                <div className="mt-3 pt-3 border-t border-gray-700">
-                  <div className="text-xs text-gray-500 mb-1">Voted by:</div>
-                  <div className="flex flex-wrap gap-1">
-                    {leftBattler.voters.map((voter, i) => (
-                      <span
-                        key={i}
-                        className="text-xs bg-gray-700 px-2 py-1 rounded"
-                      >
-                        {voter}
-                      </span>
-                    ))}
-                  </div>
-                </div>
-              )}
-            </>
+            </div>
           )}
         </div>
 
-        {/* Right Answer */}
+        {/* Second Answer (randomized) */}
         <div
-          ref={rightAnswerRef}
-          className={`flex-1 max-w-md rounded-xl p-6 transition-all duration-300 ${
-            showResults && rightBattler.isWinner
-              ? "bg-green-900/40 ring-2 ring-yellow-400"
+          ref={answer2Ref}
+          className={`
+            absolute left-1/2 -translate-x-1/2
+            w-full max-w-lg
+            rounded-xl p-6
+            transition-all duration-300
+            ${showWinner && secondAnswer?.isWinner
+              ? "bg-green-900/50 ring-2 ring-yellow-400"
+              : showWinner && !secondAnswer?.isWinner
+              ? "bg-gray-800/50 opacity-70"
               : "bg-gray-800"
-          }`}
+            }
+          `}
+          style={{
+            top: 120,
+            opacity: 0,
+            transform: "translateX(-50%) scale(0.5)"
+          }}
         >
-          <div className="text-xl text-white mb-4">{rightBattler.answer}</div>
+          <div className="text-xl text-white text-center">{secondAnswer?.answer}</div>
 
-          {showResults && (
-            <>
-              <div
-                className={`text-3xl font-bold ${
-                  rightBattler.isWinner ? "text-yellow-400" : "text-gray-500"
-                }`}
-              >
-                {rightBattler.voteCount} {rightBattler.voteCount === 1 ? "vote" : "votes"}
+          {showVotes && (
+            <div className={`text-center mt-3 text-2xl font-bold ${
+              showWinner && secondAnswer?.isWinner ? "text-yellow-400" : "text-gray-400"
+            }`}>
+              {answerOrder.second === "left" ? displayedVotes.left : displayedVotes.right}
+              {" "}vote{(answerOrder.second === "left" ? displayedVotes.left : displayedVotes.right) === 1 ? "" : "s"}
+            </div>
+          )}
+
+          {showVotes && secondAnswer && secondAnswer.voters.length > 0 && (
+            <div className="mt-2 text-center">
+              <div className="text-xs text-gray-500">
+                {secondAnswer.voters.join(", ")}
               </div>
-
-              {rightBattler.voters.length > 0 && (
-                <div className="mt-3 pt-3 border-t border-gray-700">
-                  <div className="text-xs text-gray-500 mb-1">Voted by:</div>
-                  <div className="flex flex-wrap gap-1">
-                    {rightBattler.voters.map((voter, i) => (
-                      <span
-                        key={i}
-                        className="text-xs bg-gray-700 px-2 py-1 rounded"
-                      >
-                        {voter}
-                      </span>
-                    ))}
-                  </div>
-                </div>
-              )}
-            </>
+            </div>
           )}
         </div>
       </div>
 
-      {/* Battle Status */}
-      {battleState.isPlaying && (
-        <div className="absolute top-4 left-1/2 -translate-x-1/2 text-sm text-gray-400 bg-black/50 px-3 py-1 rounded">
-          {battleState.phase === "attacking" && "FIGHT!"}
-          {battleState.phase === "impact" && "HIT!"}
-          {battleState.phase === "ko" && "K.O.!"}
-        </div>
-      )}
+      {/* Status Text */}
+      <div className="text-center mt-8">
+        {phase === "voting" && (
+          <div className="text-2xl text-gray-400 animate-pulse">
+            Players are voting...
+          </div>
+        )}
+        {phase === "sliding" && (
+          <div className="text-xl text-gray-500">
+            Revealing authors...
+          </div>
+        )}
+      </div>
     </div>
   );
 }
