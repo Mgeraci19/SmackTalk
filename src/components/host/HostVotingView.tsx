@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState, useCallback, useEffect } from "react";
+import { useMemo, useState, useCallback, useEffect, useRef } from "react";
 import { GameState } from "@/lib/types";
 import { FighterHealthBar } from "./FighterHealthBar";
 import { BattleArena } from "./BattleArena";
@@ -15,6 +15,11 @@ export function HostVotingView({ game }: HostVotingViewProps) {
 
   // Track battle completion for status display
   const [battleComplete, setBattleComplete] = useState(false);
+
+  // Local HP tracking for animation sync (animated values, not source of truth)
+  const [animatedLeftHp, setAnimatedLeftHp] = useState<number | null>(null);
+  const [animatedRightHp, setAnimatedRightHp] = useState<number | null>(null);
+  const hasInitializedHp = useRef(false);
 
   // Get current prompt and its submissions
   const currentPrompt = game.prompts?.find((p) => p._id === game.currentPromptId);
@@ -109,6 +114,18 @@ export function HostVotingView({ game }: HostVotingViewProps) {
       }
     : null;
 
+  // Initialize animated HP from player data
+  useEffect(() => {
+    if (leftBattler?.player && rightBattler?.player) {
+      // Only initialize once per prompt, or when prompt changes
+      if (!hasInitializedHp.current) {
+        setAnimatedLeftHp(leftBattler.player.hp ?? 100);
+        setAnimatedRightHp(rightBattler.player.hp ?? 100);
+        hasInitializedHp.current = true;
+      }
+    }
+  }, [leftBattler?.player, rightBattler?.player]);
+
   // Callbacks
   const handleBattleComplete = useCallback(() => {
     setBattleComplete(true);
@@ -116,15 +133,25 @@ export function HostVotingView({ game }: HostVotingViewProps) {
 
   const handleDamageApplied = useCallback((side: BattleSide, damage: number) => {
     console.log(`[HostVotingView] Damage applied to ${side}: ${damage}`);
-    // HP is managed by Convex, this is just for visual feedback
+    // Update local animated HP immediately for visual feedback
+    if (side === "left") {
+      setAnimatedLeftHp((prev) => Math.max(0, (prev ?? 100) - damage));
+    } else {
+      setAnimatedRightHp((prev) => Math.max(0, (prev ?? 100) - damage));
+    }
   }, []);
 
-  // Reset battle complete when prompt changes
-  // Note: setState in effect is intentional here to reset UI state when prompt changes
+  // Reset battle complete and HP tracking when prompt changes
   useEffect(() => {
-    // eslint-disable-next-line react-hooks/set-state-in-effect
     setBattleComplete(false);
-  }, [game.currentPromptId]);
+    hasInitializedHp.current = false;
+    // Re-initialize HP from current player data
+    if (leftBattler?.player && rightBattler?.player) {
+      setAnimatedLeftHp(leftBattler.player.hp ?? 100);
+      setAnimatedRightHp(rightBattler.player.hp ?? 100);
+      hasInitializedHp.current = true;
+    }
+  }, [game.currentPromptId, leftBattler?.player, rightBattler?.player]);
 
   return (
     <div
@@ -139,7 +166,7 @@ export function HostVotingView({ game }: HostVotingViewProps) {
         {leftBattler?.player && (
           <FighterHealthBar
             name={leftBattler.player.name}
-            hp={leftBattler.player.hp || 0}
+            hp={animatedLeftHp ?? leftBattler.player.hp ?? 0}
             maxHp={leftBattler.player.maxHp || 100}
             side="left"
             isWinner={battleComplete && leftBattler.isWinner}
@@ -149,7 +176,7 @@ export function HostVotingView({ game }: HostVotingViewProps) {
         {rightBattler?.player && (
           <FighterHealthBar
             name={rightBattler.player.name}
-            hp={rightBattler.player.hp || 0}
+            hp={animatedRightHp ?? rightBattler.player.hp ?? 0}
             maxHp={rightBattler.player.maxHp || 100}
             side="right"
             isWinner={battleComplete && rightBattler.isWinner}

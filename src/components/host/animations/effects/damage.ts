@@ -18,26 +18,40 @@ function resolveTarget(target: AnimationContext["attacker"] | undefined): HTMLEl
 
 /**
  * Creates a damage number element
+ * @param isLoser - true for the loser (bigger, bolder), false for winner (smaller, muted)
  */
 function createDamageNumber(
   container: HTMLElement,
   damage: number,
   x: number,
   y: number,
-  isCritical: boolean = false
+  isCritical: boolean = false,
+  isLoser: boolean = true
 ): HTMLDivElement {
   const el = document.createElement("div");
   el.textContent = `-${damage}`;
   el.className = "damage-number";
+
+  // Loser: big, bold, bright red
+  // Winner: smaller, muted gray (they took less damage)
+  const fontSize = isLoser
+    ? (isCritical ? "4rem" : "3rem")
+    : "1.5rem";
+  const color = isLoser
+    ? (isCritical ? "#ff0000" : "#ff4444")
+    : "#888888";
+  const opacity = isLoser ? "1" : "0.7";
+
   el.style.cssText = `
     position: absolute;
     left: ${x}px;
     top: ${y}px;
     transform: translate(-50%, -50%) scale(0);
     font-family: 'Impact', 'Arial Black', sans-serif;
-    font-size: ${isCritical ? "3.5rem" : "2.5rem"};
-    font-weight: bold;
-    color: ${isCritical ? "#ff0000" : "#ff4444"};
+    font-size: ${fontSize};
+    font-weight: ${isLoser ? "bold" : "normal"};
+    color: ${color};
+    opacity: ${opacity};
     text-shadow:
       -2px -2px 0 #000,
       2px -2px 0 #000,
@@ -61,33 +75,38 @@ export const damageNumberAnimation: AnimationDefinition = {
   duration: 0.8,
 
   create: (context: AnimationContext, options?: AnimationOptions) => {
-    const { defender } = context;
+    const { defender, arenaContainer } = context;
     const damage = options?.damage || 10;
     const isCritical = damage >= 20;
+    const isLoser = true; // Default to loser styling (main target)
 
     const defenderEl = resolveTarget(defender);
+    const arenaEl = resolveTarget(arenaContainer);
 
     const timeline = gsap.timeline({
       onComplete: context.onComplete,
     });
 
-    if (!defenderEl || !defenderEl.parentElement) {
+    // Use arena container for positioning
+    const container = arenaEl || defenderEl?.parentElement;
+    if (!defenderEl || !container) {
       return timeline;
     }
 
-    // Get position above defender
+    // Get position above defender relative to arena container
     const rect = defenderEl.getBoundingClientRect();
-    const parentRect = defenderEl.parentElement.getBoundingClientRect();
-    const x = rect.left - parentRect.left + rect.width / 2;
-    const y = rect.top - parentRect.top;
+    const containerRect = container.getBoundingClientRect();
+    const x = rect.left - containerRect.left + rect.width / 2;
+    const y = rect.top - containerRect.top;
 
-    // Create damage number
+    // Create damage number (loser styling - big and bold)
     const damageEl = createDamageNumber(
-      defenderEl.parentElement,
+      container,
       damage,
       x,
       y,
-      isCritical
+      isCritical,
+      isLoser
     );
 
     // Pop in
@@ -123,24 +142,27 @@ export const multiHitDamageAnimation: AnimationDefinition = {
   duration: 1.2,
 
   create: (context: AnimationContext, options?: AnimationOptions) => {
-    const { defender } = context;
+    const { defender, arenaContainer } = context;
     const hitCount = options?.hitCount || 3;
     const damagePerHit = options?.damage || 5;
 
     const defenderEl = resolveTarget(defender);
+    const arenaEl = resolveTarget(arenaContainer);
 
     const timeline = gsap.timeline({
       onComplete: context.onComplete,
     });
 
-    if (!defenderEl || !defenderEl.parentElement) {
+    // Use arena container for positioning
+    const container = arenaEl || defenderEl?.parentElement;
+    if (!defenderEl || !container) {
       return timeline;
     }
 
     const rect = defenderEl.getBoundingClientRect();
-    const parentRect = defenderEl.parentElement.getBoundingClientRect();
-    const baseX = rect.left - parentRect.left + rect.width / 2;
-    const baseY = rect.top - parentRect.top;
+    const containerRect = container.getBoundingClientRect();
+    const baseX = rect.left - containerRect.left + rect.width / 2;
+    const baseY = rect.top - containerRect.top;
 
     // Create multiple damage numbers with slight delays
     for (let i = 0; i < hitCount; i++) {
@@ -150,11 +172,12 @@ export const multiHitDamageAnimation: AnimationDefinition = {
       const y = baseY + offsetY;
 
       const damageEl = createDamageNumber(
-        defenderEl.parentElement,
+        container,
         damagePerHit,
         x,
         y,
-        false
+        false,
+        true // isLoser
       );
 
       // Staggered pop and float
@@ -190,14 +213,13 @@ export const multiHitDamageAnimation: AnimationDefinition = {
     // Add final total at the end
     const totalDamage = damagePerHit * hitCount;
     const totalEl = createDamageNumber(
-      defenderEl.parentElement,
+      container,
       totalDamage,
       baseX,
       baseY - 40,
-      true
+      true, // isCritical
+      true  // isLoser
     );
-    totalEl.style.fontSize = "3rem";
-    totalEl.style.color = "#ff0000";
 
     timeline.to(
       totalEl,

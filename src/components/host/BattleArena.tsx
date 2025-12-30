@@ -66,11 +66,15 @@ export function BattleArena({
   onBattleCompleteRef.current = onBattleComplete;
   onDamageAppliedRef.current = onDamageApplied;
 
-  // Initialize battle sequence hook
+  // Initialize battle sequence hook with slower animations
   const { state: battleState, actions: battleActions } = useBattleSequence({
     leftFighter: leftFighterRef,
     rightFighter: rightFighterRef,
     arenaContainer: arenaRef,
+    config: {
+      speedMultiplier: 0.6, // Slow down animations by 40%
+      shakeIntensity: 1.2,  // Slightly more dramatic shakes
+    },
     onDamageApplied: (side, damage) => {
       // Flash hurt state on defender
       if (side === "left") {

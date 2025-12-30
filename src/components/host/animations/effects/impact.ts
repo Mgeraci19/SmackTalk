@@ -62,32 +62,35 @@ export const impactBurstAnimation: AnimationDefinition = {
   duration: 0.5,
 
   create: (context: AnimationContext, options?: AnimationOptions) => {
-    const { defender, attackerSide } = context;
+    const { defender, attackerSide, arenaContainer } = context;
     const defenderEl = resolveTarget(defender);
+    const arenaEl = resolveTarget(arenaContainer);
 
     const timeline = gsap.timeline({
       onComplete: context.onComplete,
     });
 
-    if (!defenderEl || !defenderEl.parentElement) {
+    // Use arena container for positioning (has position: relative)
+    const container = arenaEl || defenderEl?.parentElement;
+    if (!defenderEl || !container) {
       return timeline;
     }
 
-    // Get defender position
+    // Get defender position relative to arena container
     const rect = defenderEl.getBoundingClientRect();
-    const parentRect = defenderEl.parentElement.getBoundingClientRect();
+    const containerRect = container.getBoundingClientRect();
 
-    // Position slightly offset from center based on attack direction
+    // Position on the defender, offset based on attack direction
     const offsetX = attackerSide === "left" ? -30 : 30;
-    const x = rect.left - parentRect.left + rect.width / 2 + offsetX;
-    const y = rect.top - parentRect.top + rect.height / 2 - 20;
+    const x = rect.left - containerRect.left + rect.width / 2 + offsetX;
+    const y = rect.top - containerRect.top + rect.height / 2 - 20;
 
     // Choose random impact word
     const impactWords = ["POW!", "BAM!", "WHAM!", "CRACK!", "SMASH!"];
     const word = impactWords[Math.floor(Math.random() * impactWords.length)];
 
-    // Create the text element
-    const textEl = createImpactText(defenderEl.parentElement, word, x, y);
+    // Create the text element in the arena container
+    const textEl = createImpactText(container, word, x, y);
 
     // Pop in with scale and rotation
     timeline.fromTo(
@@ -137,26 +140,29 @@ export const starburstAnimation: AnimationDefinition = {
   duration: 0.4,
 
   create: (context: AnimationContext) => {
-    const { defender, attackerSide } = context;
+    const { defender, attackerSide, arenaContainer } = context;
     const defenderEl = resolveTarget(defender);
+    const arenaEl = resolveTarget(arenaContainer);
 
     const timeline = gsap.timeline({
       onComplete: context.onComplete,
     });
 
-    if (!defenderEl || !defenderEl.parentElement) {
+    // Use arena container for positioning
+    const parentContainer = arenaEl || defenderEl?.parentElement;
+    if (!defenderEl || !parentContainer) {
       return timeline;
     }
 
     const rect = defenderEl.getBoundingClientRect();
-    const parentRect = defenderEl.parentElement.getBoundingClientRect();
+    const containerRect = parentContainer.getBoundingClientRect();
     const offsetX = attackerSide === "left" ? -20 : 20;
-    const centerX = rect.left - parentRect.left + rect.width / 2 + offsetX;
-    const centerY = rect.top - parentRect.top + rect.height / 2;
+    const centerX = rect.left - containerRect.left + rect.width / 2 + offsetX;
+    const centerY = rect.top - containerRect.top + rect.height / 2;
 
     // Create starburst container
-    const container = document.createElement("div");
-    container.style.cssText = `
+    const burstContainer = document.createElement("div");
+    burstContainer.style.cssText = `
       position: absolute;
       left: ${centerX}px;
       top: ${centerY}px;
@@ -165,7 +171,7 @@ export const starburstAnimation: AnimationDefinition = {
       z-index: 999;
       pointer-events: none;
     `;
-    defenderEl.parentElement.appendChild(container);
+    parentContainer.appendChild(burstContainer);
 
     // Create rays
     const rayCount = 8;
@@ -184,7 +190,7 @@ export const starburstAnimation: AnimationDefinition = {
         transform: rotate(${angle}deg);
         transform-origin: top center;
       `;
-      container.appendChild(ray);
+      burstContainer.appendChild(ray);
       rays.push(ray);
     }
 
@@ -205,7 +211,7 @@ export const starburstAnimation: AnimationDefinition = {
         duration: 0.2,
         ease: "power1.out",
         onComplete: () => {
-          container.remove();
+          burstContainer.remove();
         },
       },
       "-=0.05"

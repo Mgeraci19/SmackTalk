@@ -170,10 +170,10 @@ export const AvatarFighter = forwardRef<HTMLDivElement, AvatarFighterProps>(
           {name}
         </div>
 
-        {/* Winner Crown */}
+        {/* Winner Badge */}
         {isWinner && (
-          <div className="absolute -top-6 left-1/2 -translate-x-1/2 text-4xl animate-bounce">
-            👑
+          <div className="absolute -top-8 left-1/2 -translate-x-1/2 bg-yellow-500 text-black px-3 py-1 rounded-full text-sm font-bold animate-bounce shadow-lg">
+            ★ WINNER ★
           </div>
         )}
 
