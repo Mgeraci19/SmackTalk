@@ -90,16 +90,21 @@ export function playTieAttack({
     let winner: "left" | "right";
     let message: string;
 
+    // Check for combo KO
+    const leftStreak = (leftBattler.lossStreak || 0) + 1;
+    const rightStreak = (rightBattler.lossStreak || 0) + 1;
+    const bothCombo = leftStreak >= 3 && rightStreak >= 3;
+
     if (leftLen !== rightLen) {
       // Shorter answer wins!
       winner = leftLen < rightLen ? "left" : "right";
-      message = "THE QUICKER WIT SURVIVES!";
+      message = bothCombo ? "DOUBLE COMBO KO!" : "THE QUICKER WIT SURVIVES!";
     } else {
       // Same length - faster submission wins
       const leftTime = leftBattler.submissionTime || 0;
       const rightTime = rightBattler.submissionTime || 0;
       winner = leftTime < rightTime ? "left" : "right";
-      message = "SPEED WINS!";
+      message = bothCombo ? "DOUBLE COMBO KO!" : "SPEED WINS!";
     }
 
     const loserRef = winner === "left" ? refs.rightFighter : refs.leftFighter;
@@ -134,11 +139,16 @@ export function playTieAttack({
   } else if (leftKO || rightKO) {
     // Single KO in a tie - one player survives
     const winner = leftKO ? "right" : "left";
+    const loser = leftKO ? leftBattler : rightBattler;
     const loserRef = leftKO ? refs.leftFighter : refs.rightFighter;
     const direction = leftKO ? -1 : 1;
 
+    // Check for combo KO (after taking damage, they'll have +1 streak)
+    const loserStreak = (loser.lossStreak || 0) + 1;
+    const isComboKO = loserStreak >= 3;
+
     tieTimeline.call(() => {
-      actions.setTieMessage("KNOCKOUT!");
+      actions.setTieMessage(isComboKO ? `COMBO x${loserStreak} KO!` : "KNOCKOUT!");
     });
 
     tieTimeline.to({}, { duration: 0.8 });

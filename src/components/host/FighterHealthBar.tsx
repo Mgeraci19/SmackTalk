@@ -12,9 +12,10 @@ interface FighterHealthBarProps {
     isWinner?: boolean;
     showDamage?: number; // Flash damage number when set
     avatar?: string; // Base64 avatar image
+    lossStreak?: number; // Show combo indicator
 }
 
-export function FighterHealthBar({ name, hp, maxHp, side, isWinner, showDamage, avatar }: FighterHealthBarProps) {
+export function FighterHealthBar({ name, hp, maxHp, side, isWinner, showDamage, avatar, lossStreak }: FighterHealthBarProps) {
     const hpBarRef = useRef<HTMLDivElement>(null);
     const damageRef = useRef<HTMLDivElement>(null);
     const prevHpRef = useRef(hp);
@@ -84,7 +85,18 @@ export function FighterHealthBar({ name, hp, maxHp, side, isWinner, showDamage, 
                 {/* Fighter Name */}
                 <div className={`text-2xl font-bold ${isWinner ? "text-yellow-400" : "text-white"}`}>
                     {name}
+                </div>
+
+                {/* Combo Indicator */}
+                {lossStreak && lossStreak >= 2 && (
+                    <div className={`px-3 py-1 rounded-full font-bold text-sm ${
+                        lossStreak >= 3
+                            ? "bg-red-600 text-white animate-pulse"
+                            : "bg-orange-500 text-white"
+                    }`}>
+                        COMBO x{lossStreak}
                     </div>
+                )}
             </div>
 
             {/* HP Bar Container */}

@@ -173,6 +173,7 @@ export function HostVotingView({ game }: HostVotingViewProps) {
         hp: leftBattler.player?.hp || 100,
         maxHp: leftBattler.player?.maxHp || 100,
         submissionTime: leftBattler._creationTime,
+        lossStreak: leftBattler.player?.lossStreak,
       }
     : null;
 
@@ -188,6 +189,7 @@ export function HostVotingView({ game }: HostVotingViewProps) {
         hp: rightBattler.player?.hp || 100,
         maxHp: rightBattler.player?.maxHp || 100,
         submissionTime: rightBattler._creationTime,
+        lossStreak: rightBattler.player?.lossStreak,
       }
     : null;
 
@@ -332,6 +334,7 @@ export function HostVotingView({ game }: HostVotingViewProps) {
               isWinner={battleComplete && leftBattler.isWinner}
               avatar={leftBattler.player.avatar}
               showDamage={leftShowDamage}
+              lossStreak={leftBattler.player.lossStreak}
             />
           )}
         </div>
@@ -352,6 +355,7 @@ export function HostVotingView({ game }: HostVotingViewProps) {
               isWinner={battleComplete && rightBattler.isWinner}
               avatar={rightBattler.player.avatar}
               showDamage={rightShowDamage}
+              lossStreak={rightBattler.player.lossStreak}
             />
           )}
         </div>

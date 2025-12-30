@@ -43,6 +43,10 @@ export function playWinnerAttack({
   const loserNewHp = (loser.hp || 100) - damage;
   const isKO = loserNewHp <= 0;
 
+  // Check for combo KO (3+ loss streak after this loss)
+  const loserStreak = (loser.lossStreak || 0) + 1; // This will be their streak AFTER losing
+  const isComboKO = isKO && loserStreak >= 3;
+
   // Set winner to attacking state
   if (winnerIsLeft) {
     actions.setLeftFighterState("attacking");
@@ -58,6 +62,11 @@ export function playWinnerAttack({
   const direction = winnerIsLeft ? 1 : -1;
 
   if (isKO) {
+    // Show combo message if applicable
+    if (isComboKO) {
+      actions.setTieMessage(`COMBO x${loserStreak} KO!`);
+    }
+
     // KO animation - attack then bump off
     const attackTimeline = gsap.timeline({
       onComplete: () => {
@@ -73,6 +82,10 @@ export function playWinnerAttack({
               actions.setRightFighterState("ko");
             } else {
               actions.setLeftFighterState("ko");
+            }
+            // Clear combo message
+            if (isComboKO) {
+              actions.setTieMessage(null);
             }
             actions.setPhase("complete");
             onComplete?.();
