@@ -296,9 +296,7 @@ export function HostVotingView({ game }: HostVotingViewProps) {
     // Clear damage displays
     setLeftShowDamage(undefined);
     setRightShowDamage(undefined);
-    // Clear corner man assignment
-    setShowCornerManAssignment(false);
-    setCornerManAssignment(null);
+    // DON'T clear corner man assignment - it has its own timer and will hide itself
     // Re-initialize HP from current player data
     if (leftBattler?.player && rightBattler?.player) {
       setAnimatedLeftHp(leftBattler.player.hp ?? 100);
