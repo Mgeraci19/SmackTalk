@@ -7,11 +7,12 @@ import { ErrorBanner } from "@/components/ui/error-banner";
 interface RoundResultsViewProps {
     game: GameState;
     playerId: Id<"players"> | null;
+    sessionToken: string;
     isVip: boolean;
-    nextRound: (args: { gameId: Id<"games"> }) => Promise<any>;
+    nextRound: (args: { gameId: Id<"games">; playerId: Id<"players">; sessionToken: string }) => Promise<any>;
 }
 
-export function RoundResultsView({ game, playerId, isVip, nextRound }: RoundResultsViewProps) {
+export function RoundResultsView({ game, playerId, sessionToken, isVip, nextRound }: RoundResultsViewProps) {
     const { error, showError, clearError } = useErrorState();
 
     return (
@@ -60,7 +61,7 @@ export function RoundResultsView({ game, playerId, isVip, nextRound }: RoundResu
                     aria-label={`Start Round ${game.currentRound + 1}`}
                     className="mt-8 w-full animate-pulse"
                     size="lg"
-                    onClick={() => nextRound({ gameId: game._id }).catch((e: any) => showError("action-failed", e.message))}
+                    onClick={() => playerId && nextRound({ gameId: game._id, playerId, sessionToken }).catch((e: any) => showError("action-failed", e.message))}
                 >
                     Start Round {game.currentRound + 1} ⏭️
                 </Button>

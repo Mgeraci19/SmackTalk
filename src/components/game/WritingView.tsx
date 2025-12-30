@@ -70,7 +70,7 @@ function PromptCard({ prompt, initialValue, isDone, onSubmit, onSetValue, showEr
 }
 
 // Helper Component for Corner Man Input
-function CornerManSuggestionCard({ prompt, game, playerId, submitSuggestion, captainIsBot, captainId, submitAnswer, showError }: any) {
+function CornerManSuggestionCard({ prompt, game, playerId, sessionToken, submitSuggestion, captainIsBot, captainId, submitAnswer, showError }: any) {
     const [suggestionText, setSuggestionText] = useState("");
     const [isSubmitted, setIsSubmitted] = useState(false);
 
@@ -128,6 +128,7 @@ function CornerManSuggestionCard({ prompt, game, playerId, submitSuggestion, cap
                                 await submitSuggestion({
                                     gameId: game._id,
                                     playerId: playerId!,
+                                    sessionToken,
                                     promptId: prompt._id,
                                     text: suggestionText
                                 });
@@ -154,7 +155,8 @@ function CornerManSuggestionCard({ prompt, game, playerId, submitSuggestion, cap
                                 try {
                                     await submitAnswer({
                                         gameId: game._id,
-                                        playerId: captainId, // Submit AS the Bot
+                                        playerId: playerId!, // Use own playerId for auth
+                                        sessionToken,
                                         promptId: prompt._id,
                                         text: suggestionText
                                     });
@@ -188,13 +190,14 @@ import { GameState } from "@/lib/types";
 interface WritingViewProps {
     game: GameState;
     playerId: Id<"players"> | null;
-    startGame: (args: { gameId: Id<"games"> }) => Promise<any>;
-    submitAnswer: (args: { gameId: Id<"games">; playerId: Id<"players">; promptId: Id<"prompts">; text: string }) => Promise<any>;
-    submitSuggestion: (args: { gameId: Id<"games">; playerId: Id<"players">; promptId: Id<"prompts">; text: string }) => Promise<any>;
+    sessionToken: string;
+    startGame: (args: { gameId: Id<"games">; playerId: Id<"players">; sessionToken: string }) => Promise<any>;
+    submitAnswer: (args: { gameId: Id<"games">; playerId: Id<"players">; sessionToken: string; promptId: Id<"prompts">; text: string }) => Promise<any>;
+    submitSuggestion: (args: { gameId: Id<"games">; playerId: Id<"players">; sessionToken: string; promptId: Id<"prompts">; text: string }) => Promise<any>;
     answers?: Record<string, string>;
 }
 
-export function WritingView({ game, playerId, startGame, submitAnswer, submitSuggestion }: WritingViewProps) {
+export function WritingView({ game, playerId, sessionToken, startGame, submitAnswer, submitSuggestion }: WritingViewProps) {
     const [submittedPrompts, setSubmittedPrompts] = useState<Set<string>>(new Set());
     const { error, showError, clearError } = useErrorState();
     const myPlayer = game.players.find((p) => p._id === playerId);
@@ -248,6 +251,7 @@ export function WritingView({ game, playerId, startGame, submitAnswer, submitSug
                             prompt={p}
                             game={game}
                             playerId={playerId}
+                            sessionToken={sessionToken}
                             submitSuggestion={submitSuggestion}
                             captainId={myTeamId}
                             captainIsBot={captainPlayer?.isBot}
@@ -291,7 +295,7 @@ export function WritingView({ game, playerId, startGame, submitAnswer, submitSug
                     variant="destructive"
                     size="sm"
                     aria-label="Reset the current writing phase (Admin only)"
-                    onClick={() => startGame({ gameId: game._id }).catch((e: any) => showError("action-failed", e.message))}
+                    onClick={() => playerId && startGame({ gameId: game._id, playerId, sessionToken }).catch((e: any) => showError("action-failed", e.message))}
                 >
                     Reset Phase
                 </Button>
@@ -326,6 +330,7 @@ export function WritingView({ game, playerId, startGame, submitAnswer, submitSug
                                     await submitAnswer({
                                         gameId: game._id,
                                         playerId: playerId as Id<"players">,
+                                        sessionToken,
                                         promptId: p._id,
                                         text
                                     });

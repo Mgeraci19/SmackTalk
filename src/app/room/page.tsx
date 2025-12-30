@@ -26,6 +26,7 @@ function RoomContent() {
     const router = useRouter();
 
     const [playerId, setPlayerId] = useState<Id<"players"> | null>(null);
+    const [sessionToken, setSessionToken] = useState<string>("");
     const [messageText, setMessageText] = useState("");
 
     // Only query if roomCode exists
@@ -52,10 +53,12 @@ function RoomContent() {
         }
 
         const storedId = sessionStorage.getItem("playerId");
-        if (!storedId) {
+        const storedToken = sessionStorage.getItem("sessionToken");
+        if (!storedId || !storedToken) {
             router.push("/");
         } else {
             setPlayerId(storedId as Id<"players">);
+            setSessionToken(storedToken);
         }
     }, [router, roomCode]);
 
@@ -97,9 +100,9 @@ function RoomContent() {
     const isVip = myPlayer?.isVip ?? false;
 
     const handleSend = async () => {
-        if (!messageText || !playerId) return;
+        if (!messageText || !playerId || !sessionToken) return;
         try {
-            await sendMessage({ gameId: game._id, playerId, text: messageText });
+            await sendMessage({ gameId: game._id, playerId, sessionToken, text: messageText });
             setMessageText("");
         } catch (e: any) {
             showError("chat-failed", e.message);
@@ -165,17 +168,18 @@ function RoomContent() {
                     </h1>
 
                     {game.status === "LOBBY" && (
-                        <LobbyView game={game} playerId={playerId} isVip={isVip} startGame={startGame} />
+                        <LobbyView game={game} playerId={playerId} sessionToken={sessionToken} isVip={isVip} startGame={startGame} />
                     )}
 
                     {game.status === "PROMPTS" && (
-                        <WritingView game={game} playerId={playerId} startGame={startGame} submitAnswer={submitAnswer} submitSuggestion={submitSuggestion} />
+                        <WritingView game={game} playerId={playerId} sessionToken={sessionToken} startGame={startGame} submitAnswer={submitAnswer} submitSuggestion={submitSuggestion} />
                     )}
 
                     {game.status === "VOTING" && (
                         <VotingView
                             game={game}
                             playerId={playerId}
+                            sessionToken={sessionToken}
                             isVip={isVip}
                             submitVote={submitVote}
                             nextBattle={nextBattle}
@@ -183,7 +187,7 @@ function RoomContent() {
                     )}
 
                     {game.status === "ROUND_RESULTS" && (
-                        <RoundResultsView game={game} playerId={playerId} isVip={isVip} nextRound={nextRound} />
+                        <RoundResultsView game={game} playerId={playerId} sessionToken={sessionToken} isVip={isVip} nextRound={nextRound} />
                     )}
 
                     {game.status === "RESULTS" && (

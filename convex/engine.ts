@@ -2,6 +2,7 @@ import { mutation } from "./_generated/server";
 import { v } from "convex/values";
 import { setupPhase1, setupPhase2, setupPhase3, setupPhase4, resolvePhase2, createSuddenDeathPrompt } from "./lib/phases";
 import { api } from "./_generated/api";
+import { validateVipPlayer } from "./lib/auth";
 
 // Helper function to ensure HP is always a valid number
 function sanitizeHP(hp: number | undefined | null): number {
@@ -14,8 +15,15 @@ function sanitizeHP(hp: number | undefined | null): number {
 
 
 export const nextBattle = mutation({
-    args: { gameId: v.id("games") },
+    args: {
+        gameId: v.id("games"),
+        playerId: v.id("players"),
+        sessionToken: v.string()
+    },
     handler: async (ctx, args) => {
+        // Validate that the player is VIP
+        await validateVipPlayer(ctx, args.playerId, args.sessionToken);
+
         const game = await ctx.db.get(args.gameId);
         if (!game) return;
 
@@ -217,8 +225,15 @@ export const nextBattle = mutation({
 });
 
 export const nextRound = mutation({
-    args: { gameId: v.id("games") },
+    args: {
+        gameId: v.id("games"),
+        playerId: v.id("players"),
+        sessionToken: v.string()
+    },
     handler: async (ctx, args) => {
+        // Validate that the player is VIP
+        await validateVipPlayer(ctx, args.playerId, args.sessionToken);
+
         const game = await ctx.db.get(args.gameId);
         if (!game) return;
 

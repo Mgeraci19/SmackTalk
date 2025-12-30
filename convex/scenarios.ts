@@ -1,5 +1,6 @@
 import { mutation, query } from "./_generated/server";
 import { v } from "convex/values";
+import { generateSessionToken } from "./lib/auth";
 
 export const setupRound2Test = mutation({
     args: {},
@@ -13,10 +14,10 @@ export const setupRound2Test = mutation({
         });
 
         // 2. Create Players
-        const p1 = await ctx.db.insert("players", { gameId, name: "Victim", score: 0, isVip: true, hp: 10, knockedOut: false });
-        const p2 = await ctx.db.insert("players", { gameId, name: "Killer", score: 0, isVip: false, hp: 100, knockedOut: false });
-        const p3 = await ctx.db.insert("players", { gameId, name: "Bystander1", score: 0, isVip: false, hp: 100, knockedOut: false });
-        const p4 = await ctx.db.insert("players", { gameId, name: "Bystander2", score: 0, isVip: false, hp: 100, knockedOut: false });
+        const p1 = await ctx.db.insert("players", { gameId, name: "Victim", score: 0, isVip: true, sessionToken: generateSessionToken(), hp: 10, knockedOut: false });
+        const p2 = await ctx.db.insert("players", { gameId, name: "Killer", score: 0, isVip: false, sessionToken: generateSessionToken(), hp: 100, knockedOut: false });
+        const p3 = await ctx.db.insert("players", { gameId, name: "Bystander1", score: 0, isVip: false, sessionToken: generateSessionToken(), hp: 100, knockedOut: false });
+        const p4 = await ctx.db.insert("players", { gameId, name: "Bystander2", score: 0, isVip: false, sessionToken: generateSessionToken(), hp: 100, knockedOut: false });
 
         // 3. Create Prompts (Pair 1: Victim vs Killer, Pair 2: By1 vs By2)
         const prompt1 = await ctx.db.insert("prompts", { gameId, text: "Prompt 1 (V vs K)", assignedTo: [p1, p2] });

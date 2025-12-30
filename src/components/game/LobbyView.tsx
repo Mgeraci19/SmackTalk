@@ -7,11 +7,12 @@ import { ErrorBanner } from "@/components/ui/error-banner";
 interface LobbyViewProps {
     game: GameState;
     playerId: Id<"players"> | null;
+    sessionToken: string;
     isVip: boolean;
-    startGame: (args: { gameId: Id<"games"> }) => Promise<any>;
+    startGame: (args: { gameId: Id<"games">; playerId: Id<"players">; sessionToken: string }) => Promise<any>;
 }
 
-export function LobbyView({ game, playerId, isVip, startGame }: LobbyViewProps) {
+export function LobbyView({ game, playerId, sessionToken, isVip, startGame }: LobbyViewProps) {
     const { error, showError, clearError } = useErrorState();
 
     return (
@@ -61,7 +62,7 @@ export function LobbyView({ game, playerId, isVip, startGame }: LobbyViewProps) 
                         className="w-full"
                         size="lg"
                         disabled={game.players.length < 1}
-                        onClick={() => startGame({ gameId: game._id }).catch((e: any) => showError("action-failed", e.message))}
+                        onClick={() => playerId && startGame({ gameId: game._id, playerId, sessionToken }).catch((e: any) => showError("action-failed", e.message))}
                     >
                         Start Game
                     </Button>

@@ -8,12 +8,13 @@ import { ErrorBanner } from "@/components/ui/error-banner";
 interface VotingViewProps {
     game: GameState;
     playerId: Id<"players"> | null;
+    sessionToken: string;
     isVip: boolean;
-    submitVote: (args: { gameId: Id<"games">; playerId: Id<"players">; promptId: Id<"prompts">; submissionId: Id<"submissions"> }) => Promise<any>;
-    nextBattle: (args: { gameId: Id<"games"> }) => Promise<any>;
+    submitVote: (args: { gameId: Id<"games">; playerId: Id<"players">; sessionToken: string; promptId: Id<"prompts">; submissionId: Id<"submissions"> }) => Promise<any>;
+    nextBattle: (args: { gameId: Id<"games">; playerId: Id<"players">; sessionToken: string }) => Promise<any>;
 }
 
-export function VotingView({ game, playerId, isVip, submitVote, nextBattle }: VotingViewProps) {
+export function VotingView({ game, playerId, sessionToken, isVip, submitVote, nextBattle }: VotingViewProps) {
     const [isSubmitting, setIsSubmitting] = useState(false);
     const { error, showError, clearError } = useErrorState();
 
@@ -101,7 +102,7 @@ export function VotingView({ game, playerId, isVip, submitVote, nextBattle }: Vo
                         id="force-next-button"
                         data-action="force-next"
                         aria-label="Force advance to next battle"
-                        onClick={() => nextBattle({ gameId: game._id }).catch((e: any) => showError("action-failed", e.message))}
+                        onClick={() => playerId && nextBattle({ gameId: game._id, playerId, sessionToken }).catch((e: any) => showError("action-failed", e.message))}
                     >
                         Force Next
                     </Button>
@@ -140,7 +141,7 @@ export function VotingView({ game, playerId, isVip, submitVote, nextBattle }: Vo
                         aria-label="Advance to next battle"
                         className="mt-2 w-full animate-bounce"
                         size="lg"
-                        onClick={() => nextBattle({ gameId: game._id }).catch((e: any) => showError("action-failed", e.message))}
+                        onClick={() => playerId && nextBattle({ gameId: game._id, playerId, sessionToken }).catch((e: any) => showError("action-failed", e.message))}
                     >
                         Next Battle ⏭️
                     </Button>
@@ -215,6 +216,7 @@ export function VotingView({ game, playerId, isVip, submitVote, nextBattle }: Vo
                                             await submitVote({
                                                 gameId: game._id,
                                                 playerId: playerId as Id<"players">,
+                                                sessionToken,
                                                 promptId: game.currentPromptId!,
                                                 submissionId: s._id
                                             });

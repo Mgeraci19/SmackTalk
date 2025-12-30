@@ -1,26 +1,56 @@
 import { mutation } from "./_generated/server";
 import { v } from "convex/values";
 import { api } from "./_generated/api";
+import {
+    validatePlayer,
+    validateTextInput,
+    MAX_MESSAGE_LENGTH,
+    MAX_ANSWER_LENGTH,
+    MAX_SUGGESTION_LENGTH
+} from "./lib/auth";
 
 export const sendMessage = mutation({
-    args: { gameId: v.id("games"), playerId: v.id("players"), text: v.string() },
+    args: {
+        gameId: v.id("games"),
+        playerId: v.id("players"),
+        sessionToken: v.string(),
+        text: v.string()
+    },
     handler: async (ctx, args) => {
+        // Validate player session
+        await validatePlayer(ctx, args.playerId, args.sessionToken);
+
+        // Validate input
+        const validatedText = validateTextInput(args.text, MAX_MESSAGE_LENGTH, "Message");
+
         await ctx.db.insert("messages", {
             gameId: args.gameId,
             playerId: args.playerId,
-            text: args.text,
+            text: validatedText,
         });
     },
 });
 
 export const submitAnswer = mutation({
-    args: { gameId: v.id("games"), playerId: v.id("players"), promptId: v.id("prompts"), text: v.string() },
+    args: {
+        gameId: v.id("games"),
+        playerId: v.id("players"),
+        sessionToken: v.string(),
+        promptId: v.id("prompts"),
+        text: v.string()
+    },
     handler: async (ctx, args) => {
+        // Validate player session
+        await validatePlayer(ctx, args.playerId, args.sessionToken);
+
+        // Validate input
+        const validatedText = validateTextInput(args.text, MAX_ANSWER_LENGTH, "Answer");
+
         console.log(`[GAME] Player ${args.playerId} submitted answer for ${args.promptId}`);
         await ctx.db.insert("submissions", {
             promptId: args.promptId,
             playerId: args.playerId,
-            text: args.text,
+            text: validatedText,
         });
 
         // MVP Check: Total Submissions >= Prompts * 2
@@ -58,8 +88,17 @@ export const submitAnswer = mutation({
 });
 
 export const submitVote = mutation({
-    args: { gameId: v.id("games"), playerId: v.id("players"), promptId: v.id("prompts"), submissionId: v.id("submissions") },
+    args: {
+        gameId: v.id("games"),
+        playerId: v.id("players"),
+        sessionToken: v.string(),
+        promptId: v.id("prompts"),
+        submissionId: v.id("submissions")
+    },
     handler: async (ctx, args) => {
+        // Validate player session
+        const player = await validatePlayer(ctx, args.playerId, args.sessionToken);
+
         console.log(`[VOTE] Player ${args.playerId} attempting to vote for submission ${args.submissionId} in prompt ${args.promptId}`);
 
         const existing = await ctx.db.query("votes")
@@ -74,8 +113,6 @@ export const submitVote = mutation({
 
         const submissionsInBattle = await ctx.db.query("submissions").withIndex("by_prompt", q => q.eq("promptId", args.promptId)).collect();
         const battlerIds = submissionsInBattle.map(s => s.playerId);
-        const player = await ctx.db.get(args.playerId);
-        if (!player) throw new Error("Player not found");
 
         const game = await ctx.db.get(args.gameId);
 
@@ -125,11 +162,22 @@ export const submitVote = mutation({
 });
 
 export const submitSuggestion = mutation({
-    args: { gameId: v.id("games"), playerId: v.id("players"), promptId: v.id("prompts"), text: v.string() },
+    args: {
+        gameId: v.id("games"),
+        playerId: v.id("players"),
+        sessionToken: v.string(),
+        promptId: v.id("prompts"),
+        text: v.string()
+    },
     handler: async (ctx, args) => {
-        const player = await ctx.db.get(args.playerId);
-        if (!player || player.role !== "CORNER_MAN") throw new Error("Only Corner Men can suggest");
+        // Validate player session
+        const player = await validatePlayer(ctx, args.playerId, args.sessionToken);
+
+        if (player.role !== "CORNER_MAN") throw new Error("Only Corner Men can suggest");
         if (!player.teamId) throw new Error("No team assigned");
+
+        // Validate input
+        const validatedText = validateTextInput(args.text, MAX_SUGGESTION_LENGTH, "Suggestion");
 
         // Validate target
         const target = await ctx.db.get(player.teamId);
@@ -140,7 +188,7 @@ export const submitSuggestion = mutation({
             promptId: args.promptId,
             senderId: args.playerId,
             targetId: player.teamId,
-            text: args.text
+            text: validatedText
         });
     }
 });

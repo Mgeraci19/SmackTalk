@@ -29,8 +29,9 @@ export default function Home() {
     clearError();
     try {
       const { roomCode } = await createGame({});
-      const { playerId } = await joinGame({ roomCode, playerName: name });
+      const { playerId, sessionToken } = await joinGame({ roomCode, playerName: name });
       sessionStorage.setItem("playerId", playerId);
+      sessionStorage.setItem("sessionToken", sessionToken);
       sessionStorage.setItem("playerName", name);
       router.push(`/room?code=${roomCode}`);
     } catch (e: any) {
@@ -50,8 +51,9 @@ export default function Home() {
     clearError();
     try {
       const code = roomCode.toUpperCase();
-      const { playerId } = await joinGame({ roomCode: code, playerName: name });
+      const { playerId, sessionToken } = await joinGame({ roomCode: code, playerName: name });
       sessionStorage.setItem("playerId", playerId);
+      sessionStorage.setItem("sessionToken", sessionToken);
       sessionStorage.setItem("playerName", name);
       router.push(`/room?code=${code}`);
     } catch (e: any) {
