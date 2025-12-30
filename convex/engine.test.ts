@@ -144,8 +144,8 @@ describe("engine.nextBattle - damage calculation", () => {
   test("player with fewer votes takes more damage", async () => {
     const t = convexTest(schema);
     // Player 1 gets 1 vote, Player 2 gets 3 votes
-    // Player 1 takes damage from 3 votes against (75% of 35 = 26 damage)
-    // Player 2 takes damage from 1 vote against (25% of 35 = 8 damage)
+    // Player 1 (loser) takes damage from 3 votes against (75% of 35 = 26 damage)
+    // Player 2 (winner) takes NO damage
     const { gameId, player1Id, player2Id } = await setupVotingScenario(t, {
       player1Votes: 1,
       player2Votes: 3,
@@ -160,11 +160,11 @@ describe("engine.nextBattle - damage calculation", () => {
     const player1 = await t.run(async (ctx) => ctx.db.get(player1Id));
     const player2 = await t.run(async (ctx) => ctx.db.get(player2Id));
 
-    // Player 1 had fewer votes, takes more damage
-    expect(player1!.hp!).toBeLessThan(player2!.hp!);
-    // Both should have taken some damage
-    expect(player1!.hp!).toBeLessThan(100);
-    expect(player2!.hp!).toBeLessThan(100);
+    // Player 1 had fewer votes (loser), takes damage
+    // Damage = (3/4) * 35 = 26.25 → floor(100 - 26.25) = 73
+    expect(player1!.hp!).toBe(73);
+    // Player 2 had more votes (winner), takes NO damage
+    expect(player2!.hp!).toBe(100);
   });
 
   test("even votes result in equal damage", async () => {
