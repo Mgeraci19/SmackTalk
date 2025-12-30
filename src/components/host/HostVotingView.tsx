@@ -73,6 +73,17 @@ export function HostVotingView({ game }: HostVotingViewProps) {
     // Calculate total votes first
     const total = currentVotes.length;
 
+    // Round multipliers (matches backend)
+    const getRoundMultiplier = (round: number): number => {
+      switch (round) {
+        case 1: return 1.0;   // 35 max damage
+        case 2: return 1.3;   // 45.5 max damage
+        case 3: return 1.0;   // 35 max damage
+        case 4: return 1.5;   // 52.5 max damage
+        default: return 1.0;
+      }
+    };
+
     // Calculate damage based on votes (matches backend logic)
     const DAMAGE_CAP = 35;
     let leftDmg = 0;
@@ -88,11 +99,8 @@ export function HostVotingView({ game }: HostVotingViewProps) {
       const isTie = leftVotesFor === rightVotesFor;
 
       if (isTie) {
-        // Tie: both take 50% of DAMAGE_CAP
-        let damage = 0.5 * DAMAGE_CAP;
-        if (game.currentRound === 4) {
-          damage *= 1.5;
-        }
+        // Tie: both take 50% of DAMAGE_CAP with round multiplier
+        const damage = 0.5 * DAMAGE_CAP * getRoundMultiplier(game.currentRound);
         leftDmg = Math.floor(damage);
         rightDmg = Math.floor(damage);
       } else {
@@ -101,10 +109,7 @@ export function HostVotingView({ game }: HostVotingViewProps) {
         const loserVotesFor = loserIsLeft ? leftVotesFor : rightVotesFor;
         const votesAgainst = total - loserVotesFor;
 
-        let damage = (votesAgainst / total) * DAMAGE_CAP;
-        if (game.currentRound === 4) {
-          damage *= 1.5;
-        }
+        const damage = (votesAgainst / total) * DAMAGE_CAP * getRoundMultiplier(game.currentRound);
 
         if (loserIsLeft) {
           leftDmg = Math.floor(damage);
@@ -218,7 +223,15 @@ export function HostVotingView({ game }: HostVotingViewProps) {
       teamId: p.teamId,
       hp: p.hp,
       knockedOut: p.knockedOut,
+      lossStreak: p.lossStreak,
     })));
+
+    // Check for COMBO KO (3 straight losses in Round 1)
+    game.players.forEach(p => {
+      if (p.knockedOut && (p.lossStreak || 0) >= 3 && game.currentRound === 1) {
+        console.log(`%c[COMBO KO!!!] ${p.name} was eliminated after 3 straight losses!`, 'color: red; font-weight: bold; font-size: 16px');
+      }
+    });
 
     // Find any player who just became a corner man and hasn't been shown yet
     const newCornerMan = game.players.find(

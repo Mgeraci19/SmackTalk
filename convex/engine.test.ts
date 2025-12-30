@@ -163,8 +163,11 @@ describe("engine.nextBattle - damage calculation", () => {
     // Player 1 had fewer votes (loser), takes damage
     // Damage = (3/4) * 35 = 26.25 → floor(100 - 26.25) = 73
     expect(player1!.hp!).toBe(73);
-    // Player 2 had more votes (winner), takes NO damage
+    // Player 2 had more votes (winner), takes NO damage, streak reset
     expect(player2!.hp!).toBe(100);
+    expect(player2!.lossStreak).toBe(0);
+    // Player 1 has loss streak of 1
+    expect(player1!.lossStreak).toBe(1);
   });
 
   test("even votes result in equal damage", async () => {
@@ -185,6 +188,9 @@ describe("engine.nextBattle - damage calculation", () => {
 
     // Equal damage for equal votes
     expect(player1!.hp).toBe(player2!.hp);
+    // Both have loss streak of 1 (tie counts as loss for both)
+    expect(player1!.lossStreak).toBe(1);
+    expect(player2!.lossStreak).toBe(1);
   });
 
   test("damage cap is 35 HP per battle", async () => {

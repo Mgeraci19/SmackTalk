@@ -27,6 +27,7 @@ export default defineSchema({
     teamId: v.optional(v.id("players")), // Linked to the "Team Captain" (Winner of the pairing)
     isBot: v.optional(v.boolean()),
     avatar: v.optional(v.string()), // Base64 PNG avatar image
+    lossStreak: v.optional(v.number()), // Track consecutive losses for combo KO
   }).index("by_game", ["gameId"]),
 
   // temporary for chat verification

@@ -23,6 +23,17 @@ export async function resolveBattle(
     const totalVotes = votes.length;
     const DAMAGE_CAP = 35;
 
+    // Round multipliers for damage scaling
+    const getRoundMultiplier = (round: number): number => {
+        switch (round) {
+            case 1: return 1.0;   // 35 max damage
+            case 2: return 1.3;   // 45.5 max damage (harder to survive)
+            case 3: return 1.0;   // 35 max damage
+            case 4: return 1.5;   // 52.5 max damage (sudden death)
+            default: return 1.0;
+        }
+    };
+
     // Safety check: If no votes were cast, skip damage calculation
     if (totalVotes === 0) {
         console.warn(`[GAME] No votes cast for prompt ${promptId}. Skipping damage calculation.`);
@@ -52,10 +63,7 @@ export async function resolveBattle(
 
     if (isTie) {
         // In a tie, both take equal damage (50% of DAMAGE_CAP)
-        let damage = 0.5 * DAMAGE_CAP;
-        if (currentRound === 4) {
-            damage *= 1.5;
-        }
+        let damage = 0.5 * DAMAGE_CAP * getRoundMultiplier(currentRound);
 
         // Calculate if both would be KO'd
         const results = subsWithVotes.map(({ sub, player }) => {
@@ -86,29 +94,32 @@ export async function resolveBattle(
                 console.log(`[GAME] DOUBLE KO TIE! Same length (${len1} chars) - faster submission wins: ${winner.player?.name} submitted first`);
             }
 
-            // Winner takes damage but survives with 1 HP
+            // Winner takes damage but survives with 1 HP (still counts as a loss in tie)
             if (winner.player) {
-                await ctx.db.patch(winner.player._id, { hp: 1, knockedOut: false });
+                const currentStreak = winner.player.lossStreak || 0;
+                await ctx.db.patch(winner.player._id, { hp: 1, knockedOut: false, lossStreak: currentStreak + 1 });
             }
 
             // Loser gets KO'd
             if (loser.player) {
+                const currentStreak = loser.player.lossStreak || 0;
                 const opponentSub = submissions.find(s => s.playerId !== loser.player!._id);
                 if (opponentSub && (currentRound === 1 || currentRound === 2)) {
                     const winnerId = opponentSub.playerId;
                     console.log(`[GAME] Round ${currentRound}: ${loser.player.name} KO'd! Assigning as Corner Man for ${winnerId}`);
-                    await ctx.db.patch(loser.player._id, { role: "CORNER_MAN", teamId: winnerId, hp: 0, knockedOut: true });
+                    await ctx.db.patch(loser.player._id, { role: "CORNER_MAN", teamId: winnerId, hp: 0, knockedOut: true, lossStreak: currentStreak + 1 });
                 } else {
                     console.log(`[GAME] Player ${loser.player.name} KO'd in Round ${currentRound}!`);
-                    await ctx.db.patch(loser.player._id, { hp: 0, knockedOut: true });
+                    await ctx.db.patch(loser.player._id, { hp: 0, knockedOut: true, lossStreak: currentStreak + 1 });
                 }
             }
         } else {
-            // Normal tie - apply equal damage to both
+            // Normal tie - apply equal damage to both (both count as losses)
             for (const r of results) {
                 if (r.player) {
-                    console.log(`[GAME] TIE: ${r.player.name}: ${r.currentHp} HP - ${Math.floor(damage)} damage = ${r.newHp} HP`);
-                    await ctx.db.patch(r.player._id, { hp: r.newHp, knockedOut: r.wouldKO });
+                    const currentStreak = r.player.lossStreak || 0;
+                    console.log(`[GAME] TIE: ${r.player.name}: ${r.currentHp} HP - ${Math.floor(damage)} damage = ${r.newHp} HP (streak: ${currentStreak + 1})`);
+                    await ctx.db.patch(r.player._id, { hp: r.newHp, knockedOut: r.wouldKO, lossStreak: currentStreak + 1 });
                 }
             }
         }
@@ -122,20 +133,27 @@ export async function resolveBattle(
 
         // Calculate damage for loser based on vote proportions
         const votesAgainst = totalVotes - loser.votesFor;
-        let damage = (votesAgainst / totalVotes) * DAMAGE_CAP;
-
-        // Round 4 (Showdown) Multiplier
-        if (currentRound === 4) {
-            damage *= 1.5;
-        }
+        let damage = (votesAgainst / totalVotes) * DAMAGE_CAP * getRoundMultiplier(currentRound);
 
         // Apply damage to loser
         if (loser.player) {
             const currentHp = sanitizeHP(loser.player.hp);
-            const newHp = Math.max(0, Math.floor(currentHp - damage));
-            const knockedOut = newHp === 0;
+            const currentStreak = loser.player.lossStreak || 0;
+            const newStreak = currentStreak + 1;
 
-            console.log(`[GAME] ${loser.player.name}: ${currentHp} HP - ${Math.floor(damage)} damage = ${newHp} HP (${loser.votesFor}/${totalVotes} votes)`);
+            // COMBO KO: 3 straight losses in Round 1 = auto KO
+            let knockedOut = false;
+            let newHp = Math.max(0, Math.floor(currentHp - damage));
+
+            if (currentRound === 1 && newStreak >= 3) {
+                knockedOut = true;
+                newHp = 0;
+                console.log(`[COMBO KO!!!] ${loser.player.name} lost 3 straight battles in Round 1! Auto-KO!`);
+            } else {
+                knockedOut = newHp === 0;
+            }
+
+            console.log(`[GAME] ${loser.player.name}: ${currentHp} HP - ${Math.floor(damage)} damage = ${newHp} HP (${loser.votesFor}/${totalVotes} votes, streak: ${newStreak})`);
 
             if (knockedOut) {
                 const opponentSub = submissions.find(s => s.playerId !== loser.player!._id);
@@ -151,27 +169,28 @@ export async function resolveBattle(
 
                     if (existingCornerMen.length >= 1) {
                         console.warn(`[GAME] WARNING: ${loser.player.name} lost to ${winnerId} who already has ${existingCornerMen.length} corner men! This violates bye logic. Assigning anyway as second corner man.`);
-                        await ctx.db.patch(loser.player._id, { role: "CORNER_MAN", teamId: winnerId, hp: newHp, knockedOut });
+                        await ctx.db.patch(loser.player._id, { role: "CORNER_MAN", teamId: winnerId, hp: newHp, knockedOut, lossStreak: newStreak });
                         console.log(`[CORNER MAN ASSIGNED] ${loser.player.name} (ID: ${loser.player._id}) → Supporting ${winnerId}`);
                     } else {
                         console.log(`[GAME] Round ${currentRound}: ${loser.player.name} KO'd! Assigning as Corner Man for ${winnerId}`);
-                        await ctx.db.patch(loser.player._id, { role: "CORNER_MAN", teamId: winnerId, hp: newHp, knockedOut });
+                        await ctx.db.patch(loser.player._id, { role: "CORNER_MAN", teamId: winnerId, hp: newHp, knockedOut, lossStreak: newStreak });
                         console.log(`[CORNER MAN ASSIGNED] ${loser.player.name} (ID: ${loser.player._id}) → Supporting ${winnerId}`);
                     }
                 } else {
                     console.log(`[GAME] Player ${loser.player.name} KO'd in Round ${currentRound}!`);
-                    await ctx.db.patch(loser.player._id, { hp: newHp, knockedOut });
+                    await ctx.db.patch(loser.player._id, { hp: newHp, knockedOut, lossStreak: newStreak });
                 }
             } else {
-                await ctx.db.patch(loser.player._id, { hp: newHp, knockedOut });
+                // Not KO'd - update HP and loss streak
+                await ctx.db.patch(loser.player._id, { hp: newHp, knockedOut, lossStreak: newStreak });
             }
         }
 
-        // Winner takes no damage - just ensure HP is clean
+        // Winner takes no damage - reset loss streak
         if (winner.player) {
             const currentHp = sanitizeHP(winner.player.hp);
-            console.log(`[GAME] ${winner.player.name}: ${currentHp} HP (WINNER - no damage, ${winner.votesFor}/${totalVotes} votes)`);
-            await ctx.db.patch(winner.player._id, { hp: currentHp, knockedOut: false });
+            console.log(`[GAME] ${winner.player.name}: ${currentHp} HP (WINNER - no damage, ${winner.votesFor}/${totalVotes} votes, streak reset)`);
+            await ctx.db.patch(winner.player._id, { hp: currentHp, knockedOut: false, lossStreak: 0 });
         }
     }
 }

@@ -70,7 +70,6 @@ export function SuggestionCard({ prompt, game, playerId, sessionToken, submitSug
                         data-testid={`corner-suggest-button-${promptIdSafe}`}
                         data-action="submit-suggestion"
                         data-prompt-id={prompt._id}
-                        data-prompt-id={prompt._id}
                         aria-label={`Suggest answer for: ${prompt.text}`}
                         // VALIDATION: Disable if empty or whitespace only
                         disabled={suggestionText.trim().length === 0}
