@@ -14,17 +14,18 @@ export function useErrorState() {
     const [error, setError] = useState<ErrorState | null>(null);
 
     const showError = useCallback((type: string, message: string) => {
+        const stamp = Date.now();
         setError({
             type,
             message,
-            timestamp: Date.now()
+            timestamp: stamp
         });
 
         // Auto-clear after 5 seconds
         setTimeout(() => {
             setError(prev => {
-                // Only clear if it's the same error (not a new one)
-                if (prev && prev.timestamp === Date.now()) {
+                // Only clear if it's the exact same error instance (checked via timestamp)
+                if (prev && prev.timestamp === stamp) {
                     return null;
                 }
                 return prev;

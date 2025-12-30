@@ -17,6 +17,8 @@ import { DebugPanel } from "@/components/game/DebugPanel";
 import { GameStatusBanner } from "@/components/game/GameStatusBanner";
 import { GameState } from "@/lib/types";
 import { useLLMContext } from "@/hooks/useLLMContext";
+import { useErrorState } from "@/hooks/useErrorState";
+import { ErrorBanner } from "@/components/ui/error-banner";
 
 function RoomContent() {
     const searchParams = useSearchParams();
@@ -38,6 +40,10 @@ function RoomContent() {
     const nextRound = useMutation(api.engine.nextRound);
 
     const [showDebug, setShowDebug] = useState(false);
+
+    // Generate LLM-friendly context and error state HOOKS MUST BE AT TOP
+    const llmContext = useLLMContext(game, playerId);
+    const { error, showError, clearError } = useErrorState();
 
     useEffect(() => {
         if (!roomCode) {
@@ -89,10 +95,6 @@ function RoomContent() {
 
     const myPlayer = game.players.find(p => p._id === playerId);
     const isVip = myPlayer?.isVip ?? false;
-
-    // Generate LLM-friendly context
-    const llmContext = useLLMContext(game, playerId);
-    const { error, showError, clearError } = useErrorState();
 
     const handleSend = async () => {
         if (!messageText || !playerId) return;
