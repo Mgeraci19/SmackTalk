@@ -46,12 +46,11 @@ export const slideAnswersAnimation: AnimationDefinition = {
     if (arenaRect && answer1Rect && answer2Rect && leftFighterRect && rightFighterRect) {
       const isMobile = arenaRect.width < MOBILE_BREAKPOINT;
 
-      // Determine which answer goes where based on battler order
-      // This requires reading answerOrder from state - for now, assume answer1=left, answer2=right
-      const leftAnswerRef = context.refs.answer1;
-      const rightAnswerRef = context.refs.answer2;
-      const leftAnswerRect = answer1Rect;
-      const rightAnswerRect = answer2Rect;
+      // Determine which answer goes where based on answer order from context
+      const leftAnswerRef = context.answerOrder.first === "left" ? context.refs.answer1 : context.refs.answer2;
+      const rightAnswerRef = context.answerOrder.first === "right" ? context.refs.answer1 : context.refs.answer2;
+      const leftAnswerRect = context.answerOrder.first === "left" ? answer1Rect : answer2Rect;
+      const rightAnswerRect = context.answerOrder.first === "right" ? answer1Rect : answer2Rect;
 
       // Current center positions relative to arena
       const leftCurrentCenterX = leftAnswerRect.left + leftAnswerRect.width / 2 - arenaRect.left;

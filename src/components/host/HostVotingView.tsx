@@ -3,7 +3,7 @@
 import { useMemo, useState, useCallback, useEffect, useRef } from "react";
 import { GameState } from "@/lib/types";
 import { FighterHealthBar } from "./FighterHealthBar";
-import { BattleArena } from "./BattleArena";
+import { AnimationOrchestrator } from "./animations/AnimationOrchestrator";
 import { BattleSide } from "./animations/registry/types";
 import { CornerManAssignment } from "./CornerManAssignment";
 import { useBattleData } from "@/hooks/useBattleData";
@@ -336,12 +336,12 @@ export function HostVotingView({ game, showWritingIndicator = false }: HostVotin
 
       {/* Battle Arena - Takes remaining space */}
       <div className="flex-1 min-h-0">
-        <BattleArena
+        <AnimationOrchestrator
+          gameState={game}
+          currentPromptId={game.currentPromptId}
+          promptText={currentPrompt?.text}
           leftBattler={leftBattlerInfo}
           rightBattler={rightBattlerInfo}
-          isReveal={isReveal}
-          promptId={game.currentPromptId}
-          promptText={currentPrompt?.text}
           leftDamage={battleData.leftDamage}
           rightDamage={battleData.rightDamage}
           onBattleComplete={handleBattleComplete}

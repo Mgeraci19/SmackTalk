@@ -24,6 +24,9 @@ export interface AnimationContext {
   leftDamage: number;
   rightDamage: number;
 
+  // Answer order (which answer appears first/second)
+  answerOrder: { first: "left" | "right"; second: "left" | "right" };
+
   // Full game state for conditional logic
   gameState: GameState;
 

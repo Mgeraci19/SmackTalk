@@ -56,6 +56,7 @@ export const battleEntryAnimation: AnimationDefinition = {
       opacity: 1,
       scale: 1,
       y: 0,
+      visibility: "visible", // Make visible for animation
       duration: 0.5, // SACRED
       ease: "back.out(1.5)", // SACRED
     });
