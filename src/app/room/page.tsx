@@ -14,7 +14,9 @@ import { VotingView } from "@/components/game/VotingView";
 import { RoundResultsView } from "@/components/game/RoundResultsView";
 import { GameResultsView } from "@/components/game/GameResultsView";
 import { DebugPanel } from "@/components/game/DebugPanel";
+import { GameStatusBanner } from "@/components/game/GameStatusBanner";
 import { GameState } from "@/lib/types";
+import { useLLMContext } from "@/hooks/useLLMContext";
 
 function RoomContent() {
     const searchParams = useSearchParams();
@@ -54,14 +56,33 @@ function RoomContent() {
     if (!roomCode) return null;
 
     if (game === undefined) {
-        return <div className="text-center p-10">Loading Room logic...</div>;
+        return (
+            <div
+                id="room-loading"
+                data-state="loading"
+                className="text-center p-10"
+            >
+                Loading Room logic...
+            </div>
+        );
     }
 
     if (game === null) {
         return (
-            <div className="flex flex-col items-center justify-center min-h-screen gap-4">
-                <h1 className="text-xl font-bold">Room {roomCode} not found</h1>
-                <Button onClick={() => router.push("/")}>Go Home</Button>
+            <div
+                id="room-not-found"
+                data-state="not-found"
+                data-room-code={roomCode}
+                className="flex flex-col items-center justify-center min-h-screen gap-4"
+            >
+                <h1 id="not-found-title" className="text-xl font-bold">Room {roomCode} not found</h1>
+                <Button
+                    id="go-home-button"
+                    data-action="navigate-home"
+                    onClick={() => router.push("/")}
+                >
+                    Go Home
+                </Button>
             </div>
         );
     }
@@ -69,17 +90,54 @@ function RoomContent() {
     const myPlayer = game.players.find(p => p._id === playerId);
     const isVip = myPlayer?.isVip ?? false;
 
+    // Generate LLM-friendly context
+    const llmContext = useLLMContext(game, playerId);
+    const { error, showError, clearError } = useErrorState();
+
     const handleSend = async () => {
         if (!messageText || !playerId) return;
-        await sendMessage({ gameId: game._id, playerId, text: messageText });
-        setMessageText("");
+        try {
+            await sendMessage({ gameId: game._id, playerId, text: messageText });
+            setMessageText("");
+        } catch (e: any) {
+            showError("chat-failed", e.message);
+        }
     };
 
     return (
-        <div className="p-4 max-w-2xl mx-auto space-y-4 min-h-screen bg-gray-50">
+        <div
+            id="room-container"
+            data-game-id={game._id}
+            data-room-code={game.roomCode}
+            data-game-phase={game.status}
+            data-current-round={game.currentRound}
+            data-max-rounds={game.maxRounds}
+            data-round-status={game.roundStatus}
+            data-is-vip={isVip}
+            data-player-role={myPlayer?.role}
+            data-player-hp={myPlayer?.hp}
+            data-has-error={!!error}
+            className="p-4 max-w-2xl mx-auto space-y-4 min-h-screen bg-gray-50 relative"
+        >
+            <ErrorBanner error={error} onDismiss={clearError} />
+
+            {/* LLM Context - Hidden JSON for programmatic access */}
+            <script
+                id="llm-game-context"
+                type="application/json"
+                dangerouslySetInnerHTML={{ __html: JSON.stringify(llmContext, null, 2) }}
+            />
+
+            {/* Accessible Game Status Banner */}
+            <GameStatusBanner game={game} playerId={playerId} />
+
             {/* DEBUG PANEL */}
-            <div className="mb-2">
+            <div id="debug-panel-container" className="mb-2">
                 <Button
+                    id="toggle-debug-button"
+                    data-testid="toggle-debug-button"
+                    data-action="toggle-debug"
+                    data-debug-visible={showDebug}
                     variant="outline"
                     size="sm"
                     onClick={() => setShowDebug(!showDebug)}
@@ -92,9 +150,16 @@ function RoomContent() {
                 )}
             </div>
 
-            <Card>
+            <Card id="game-card">
                 <div className="p-6">
-                    <h1 className="text-xl font-bold mb-4">Room {game.roomCode} ({game.status})</h1>
+                    <h1
+                        id="room-header"
+                        data-room-code={game.roomCode}
+                        data-game-status={game.status}
+                        className="text-xl font-bold mb-4"
+                    >
+                        Room {game.roomCode} ({game.status})
+                    </h1>
 
                     {game.status === "LOBBY" && (
                         <LobbyView game={game} playerId={playerId} isVip={isVip} startGame={startGame} />
@@ -122,16 +187,27 @@ function RoomContent() {
                         <GameResultsView game={game} isVip={isVip} />
                     )}
 
-                    <div className="mt-8 border-t pt-4">
-                        <h4 className="text-xs font-bold text-gray-500 uppercase mb-4">Chat & Logs</h4>
+                    <div id="chat-section" className="mt-8 border-t pt-4">
+                        <h4 id="chat-header" className="text-xs font-bold text-gray-500 uppercase mb-4">Chat & Logs</h4>
                         <div className="space-y-4">
-                            <div className="h-64 overflow-y-auto border p-4 rounded bg-white shadow-inner flex flex-col gap-2">
-                                {game.messages && game.messages.length === 0 && <div className="text-gray-400 italic">No messages yet</div>}
+                            <div
+                                id="chat-messages"
+                                data-testid="chat-messages"
+                                data-message-count={game.messages?.length || 0}
+                                className="h-64 overflow-y-auto border p-4 rounded bg-white shadow-inner flex flex-col gap-2"
+                            >
+                                {game.messages && game.messages.length === 0 && <div id="no-messages" className="text-gray-400 italic">No messages yet</div>}
                                 {game.messages && game.messages.map((m: any, i: number) => {
                                     const sender = game.players.find(p => p._id === m.playerId)?.name || "Unknown";
                                     const isMe = m.playerId === playerId;
                                     return (
-                                        <div key={i} className={`flex ${isMe ? "justify-end" : "justify-start"}`}>
+                                        <div
+                                            key={i}
+                                            id={`chat-message-${i}`}
+                                            data-sender={sender}
+                                            data-is-me={isMe}
+                                            className={`flex ${isMe ? "justify-end" : "justify-start"}`}
+                                        >
                                             <div className={`max-w-[80%] rounded p-2 text-sm ${isMe ? "bg-blue-600 text-white" : "bg-gray-200"}`}>
                                                 <div className="font-bold text-xs opacity-75">{sender}</div>
                                                 {m.text}
@@ -140,14 +216,24 @@ function RoomContent() {
                                     );
                                 })}
                             </div>
-                            <div className="flex gap-2">
+                            <div id="chat-input-container" className="flex gap-2">
                                 <Input
+                                    id="chat-input"
+                                    data-testid="chat-input"
+                                    aria-label="Type a chat message"
                                     value={messageText}
                                     onChange={e => setMessageText(e.target.value)}
                                     placeholder="Type a message..."
                                     onKeyDown={e => e.key === 'Enter' && handleSend()}
                                 />
-                                <Button onClick={handleSend}>Send</Button>
+                                <Button
+                                    id="send-chat-button"
+                                    data-testid="send-chat-button"
+                                    data-action="send-message"
+                                    onClick={handleSend}
+                                >
+                                    Send
+                                </Button>
                             </div>
                         </div>
                     </div>

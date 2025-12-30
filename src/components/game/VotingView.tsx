@@ -2,6 +2,8 @@ import { Button } from "@/components/ui/button";
 import { Id } from "../../../convex/_generated/dataModel";
 import { GameState } from "@/lib/types";
 import { useMemo, useState, useEffect } from "react";
+import { useErrorState } from "@/hooks/useErrorState";
+import { ErrorBanner } from "@/components/ui/error-banner";
 
 interface VotingViewProps {
     game: GameState;
@@ -13,6 +15,7 @@ interface VotingViewProps {
 
 export function VotingView({ game, playerId, isVip, submitVote, nextBattle }: VotingViewProps) {
     const [isSubmitting, setIsSubmitting] = useState(false);
+    const { error, showError, clearError } = useErrorState();
 
     // Reset submitting state when prompt changes
     useEffect(() => {
@@ -63,7 +66,6 @@ export function VotingView({ game, playerId, isVip, submitVote, nextBattle }: Vo
     }, [game.currentPromptId, game.submissions, game.votes, game.prompts, game.roundStatus, playerId]);
 
     // 2. Determine User Role for this Battle
-    // 2. Determine User Role for this Battle
     const userRoleState = useMemo(() => {
         const battlerIds = currentSubmissions.map((sub) => sub.playerId);
         const me = game.players.find((p) => p._id === playerId);
@@ -87,36 +89,79 @@ export function VotingView({ game, playerId, isVip, submitVote, nextBattle }: Vo
 
     if (!game.currentPromptId) {
         return (
-            <div className="text-center p-10">
+            <div
+                id="voting-loading"
+                data-state="loading-battle"
+                className="text-center p-10 relative"
+            >
+                <ErrorBanner error={error} onDismiss={clearError} />
                 Loading Battle...
-                {isVip && <Button onClick={() => nextBattle({ gameId: game._id })}>Force Next</Button>}
+                {isVip && (
+                    <Button
+                        id="force-next-button"
+                        data-action="force-next"
+                        aria-label="Force advance to next battle"
+                        onClick={() => nextBattle({ gameId: game._id }).catch((e: any) => showError("action-failed", e.message))}
+                    >
+                        Force Next
+                    </Button>
+                )}
             </div>
         );
     }
 
     return (
-        <div className="space-y-6">
-            <div className="text-center p-4 bg-blue-100 rounded">
-                <h2 className="text-2xl font-bold mb-2">
+        <div
+            id="voting-view"
+            data-game-phase="voting"
+            data-round-status={game.roundStatus}
+            data-is-reveal={votingState?.isReveal}
+            data-has-voted={votingState?.hasVoted}
+            data-can-vote={userRoleState.canVote}
+            data-is-vip={isVip}
+            data-current-prompt-id={game.currentPromptId}
+            className="space-y-6 relative"
+        >
+            <ErrorBanner error={error} onDismiss={clearError} />
+
+            <div
+                id="voting-header"
+                className="text-center p-4 bg-blue-100 rounded"
+            >
+                <h2 id="voting-phase-title" className="text-2xl font-bold mb-2">
                     {votingState?.isReveal ? "RESULTS" : "VOTING PHASE"}
                 </h2>
                 {isVip && votingState?.isReveal && (
-                    <Button className="mt-2 w-full animate-bounce" size="lg" onClick={() => nextBattle({ gameId: game._id })}>
+                    <Button
+                        id="next-battle-button"
+                        data-testid="next-battle-button"
+                        data-action="next-battle"
+                        data-requires-vip="true"
+                        aria-label="Advance to next battle"
+                        className="mt-2 w-full animate-bounce"
+                        size="lg"
+                        onClick={() => nextBattle({ gameId: game._id }).catch((e: any) => showError("action-failed", e.message))}
+                    >
                         Next Battle ⏭️
                     </Button>
                 )}
             </div>
 
             <div className="space-y-4">
-                <div className="text-center mb-4">
+                <div id="current-prompt-container" className="text-center mb-4">
                     <div className="text-sm uppercase text-gray-500 font-bold tracking-wider">Voting For</div>
-                    <div className="text-xl font-bold text-center border p-6 rounded-xl bg-white shadow-lg mt-1">
+                    <div
+                        id="current-prompt-text"
+                        data-testid="current-prompt-text"
+                        data-prompt-id={game.currentPromptId}
+                        className="text-xl font-bold text-center border p-6 rounded-xl bg-white shadow-lg mt-1"
+                    >
                         {promptText}
                     </div>
                 </div>
 
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    {currentSubmissions.map((s) => {
+                <div id="submissions-grid" className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    {currentSubmissions.map((s, index) => {
                         const isMyVote = myVote?.submissionId === s._id;
                         const isMine = s.playerId === playerId;
 
@@ -128,13 +173,32 @@ export function VotingView({ game, playerId, isVip, submitVote, nextBattle }: Vo
                         const isWinner = votingState?.isReveal && votingState.totalVotes > 0 && count === maxVotes;
 
                         return (
-                            <div key={s._id} className="relative">
+                            <div
+                                key={s._id}
+                                id={`submission-card-${index}`}
+                                data-submission-id={s._id}
+                                data-is-winner={isWinner}
+                                data-vote-count={count}
+                                data-vote-percentage={percentage}
+                                data-author-name={author?.name}
+                                className="relative"
+                            >
                                 {isWinner && (
-                                    <div className="absolute -top-3 -right-3 z-10 bg-yellow-400 text-yellow-900 px-3 py-1 rounded-full font-bold shadow-lg animate-bounce border-2 border-white transform rotate-12">
+                                    <div id={`winner-badge-${index}`} className="absolute -top-3 -right-3 z-10 bg-yellow-400 text-yellow-900 px-3 py-1 rounded-full font-bold shadow-lg animate-bounce border-2 border-white transform rotate-12">
                                         WINNER!
                                     </div>
                                 )}
                                 <Button
+                                    id={`vote-button-${s._id}`}
+                                    data-testid={`vote-button-${index}`}
+                                    data-action="vote"
+                                    data-submission-id={s._id}
+                                    data-is-my-answer={isMine}
+                                    data-is-my-vote={isMyVote}
+                                    data-can-vote={userRoleState.canVote && !myVote}
+                                    data-vote-state={isMyVote ? "voted" : myVote ? "other-voted" : "available"}
+                                    data-is-winner={isWinner}
+                                    aria-label={`Vote for answer: ${s.text}${isMine ? ' (Your answer)' : ''}`}
                                     variant={votingState?.isReveal ? (count > 0 ? "default" : "secondary") : (isMyVote ? "default" : "outline")}
                                     className={`h-48 w-full text-lg whitespace-normal cursor-pointer flex flex-col p-4
                                             ${!votingState?.isReveal && isMyVote ? "bg-green-600 hover:bg-green-700 text-white ring-2 ring-green-400" : ""} 
@@ -155,22 +219,22 @@ export function VotingView({ game, playerId, isVip, submitVote, nextBattle }: Vo
                                                 submissionId: s._id
                                             });
                                         } catch (e: any) {
-                                            alert(e.message);
+                                            showError("vote-failed", e.message);
                                         } finally {
                                             setIsSubmitting(false);
                                         }
                                     }}
                                 >
-                                    <span className={`font-bold text-xl ${isWinner ? "text-yellow-800" : ""}`}>"{s.text}"</span>
+                                    <span id={`submission-text-${index}`} className={`font-bold text-xl ${isWinner ? "text-yellow-800" : ""}`}>"{s.text}"</span>
 
                                     {!votingState?.isReveal && isMine && (
-                                        <span className="text-xs mt-2 text-gray-500 uppercase font-bold tracking-widest">(Your Answer)</span>
+                                        <span id={`your-answer-label-${index}`} className="text-xs mt-2 text-gray-500 uppercase font-bold tracking-widest">(Your Answer)</span>
                                     )}
 
                                     {!votingState?.isReveal && isMyVote && " ✅"}
 
                                     {votingState?.isReveal && (
-                                        <div className="mt-4 text-sm w-full pt-4 border-t border-black/10">
+                                        <div id={`results-${index}`} className="mt-4 text-sm w-full pt-4 border-t border-black/10">
                                             <div className="font-bold text-2xl mb-1">{percentage}%</div>
                                             <div className="text-xs opacity-75">by {author?.name}</div>
                                         </div>
@@ -178,7 +242,7 @@ export function VotingView({ game, playerId, isVip, submitVote, nextBattle }: Vo
                                 </Button>
 
                                 {votingState?.isReveal && (
-                                    <div className="mt-2 text-center text-xs text-gray-600">
+                                    <div id={`voters-list-${index}`} data-voter-count={count} className="mt-2 text-center text-xs text-gray-600">
                                         {count > 0 && <div className="font-bold mb-1">Voted for by:</div>}
                                         {votesForThis.map((v) => {
                                             const voter = game.players.find((p) => p._id === v.playerId);
@@ -194,17 +258,17 @@ export function VotingView({ game, playerId, isVip, submitVote, nextBattle }: Vo
                 {!game.roundStatus || game.roundStatus === "VOTING" ? (
                     <>
                         {votingState?.hasVoted && (
-                            <div className="text-center text-gray-500 italic animate-pulse mt-4">
+                            <div id="vote-recorded-message" data-status="vote-recorded" className="text-center text-gray-500 italic animate-pulse mt-4">
                                 Vote recorded! Waiting for others...
                             </div>
                         )}
                         {userRoleState.amIBattling && (
-                            <div className="text-center text-orange-600 font-bold animate-pulse mt-4 bg-orange-100 p-2 rounded">
+                            <div id="battling-message" data-status="battling" className="text-center text-orange-600 font-bold animate-pulse mt-4 bg-orange-100 p-2 rounded">
                                 You are in this battle! You cannot vote. Spectating...
                             </div>
                         )}
                         {userRoleState.amISupporting && (
-                            <div className="text-center text-purple-600 font-bold animate-pulse mt-4 bg-purple-100 p-2 rounded">
+                            <div id="supporting-message" data-status="supporting" className="text-center text-purple-600 font-bold animate-pulse mt-4 bg-purple-100 p-2 rounded">
                                 Your Captain is fighting! You cannot vote. Spectating...
                             </div>
                         )}

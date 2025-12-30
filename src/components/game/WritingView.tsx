@@ -3,9 +3,11 @@ import { Input } from "@/components/ui/input";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import { Id } from "../../../convex/_generated/dataModel";
 import { useState, useEffect } from "react";
+import { useErrorState } from "@/hooks/useErrorState";
+import { ErrorBanner } from "@/components/ui/error-banner";
 
 // Helper Component to handle local state pre-filling
-function PromptCard({ prompt, initialValue, isDone, onSubmit, onSetValue }: any) {
+function PromptCard({ prompt, initialValue, isDone, onSubmit, onSetValue, showError }: any) {
     const [value, setValue] = useState("");
 
     // Initialize with prefill on mount
@@ -22,20 +24,42 @@ function PromptCard({ prompt, initialValue, isDone, onSubmit, onSetValue }: any)
         }
     }, [onSetValue]);
 
+    // Create a URL-safe ID from prompt ID
+    const promptIdSafe = prompt._id;
+
     return (
-        <Card className={isDone ? "opacity-50" : ""}>
-            <CardHeader><CardTitle className="text-lg">{prompt.text}</CardTitle></CardHeader>
+        <Card
+            id={`prompt-card-${promptIdSafe}`}
+            data-prompt-id={prompt._id}
+            data-status={isDone ? "completed" : "pending"}
+            className={isDone ? "opacity-50" : ""}
+        >
+            <CardHeader>
+                <CardTitle id={`prompt-text-${promptIdSafe}`} className="text-lg">{prompt.text}</CardTitle>
+            </CardHeader>
             <CardContent>
                 {isDone ? (
-                    <div className="text-green-600 font-bold">Answer Submitted!</div>
+                    <div id={`prompt-submitted-${promptIdSafe}`} data-status="submitted" className="text-green-600 font-bold">Answer Submitted!</div>
                 ) : (
                     <div className="flex gap-2">
                         <Input
+                            id={`answer-input-${promptIdSafe}`}
+                            data-testid={`answer-input-${promptIdSafe}`}
+                            data-prompt-id={prompt._id}
+                            aria-label={`Your answer for: ${prompt.text}`}
                             placeholder="Your answer..."
                             value={value}
                             onChange={(e) => setValue(e.target.value)}
                         />
-                        <Button onClick={() => onSubmit(value)}>
+                        <Button
+                            id={`submit-answer-${promptIdSafe}`}
+                            data-testid={`submit-answer-${promptIdSafe}`}
+                            data-action="submit-answer"
+                            data-prompt-id={prompt._id}
+                            data-has-value={value.length > 0}
+                            aria-label={`Submit answer for: ${prompt.text}`}
+                            onClick={() => onSubmit(value).catch((e: any) => showError("submit-failed", e.message))}
+                        >
                             Submit
                         </Button>
                     </div>
@@ -46,20 +70,26 @@ function PromptCard({ prompt, initialValue, isDone, onSubmit, onSetValue }: any)
 }
 
 // Helper Component for Corner Man Input
-function CornerManSuggestionCard({ prompt, game, playerId, submitSuggestion, captainIsBot, captainId, submitAnswer }: any) {
+function CornerManSuggestionCard({ prompt, game, playerId, submitSuggestion, captainIsBot, captainId, submitAnswer, showError }: any) {
     const [suggestionText, setSuggestionText] = useState("");
     const [isSubmitted, setIsSubmitted] = useState(false);
 
     const mySuggestions = game.suggestions?.filter((s: any) => s.promptId === prompt._id && s.senderId === playerId) || [];
+    const promptIdSafe = prompt._id;
 
     // Check if Captain has ALREADY submitted
     const captainSubmission = game.submissions?.find((s: any) => s.promptId === prompt._id && s.playerId === captainId);
     if (captainSubmission) {
         return (
-            <Card className="opacity-75 bg-gray-50">
+            <Card
+                id={`corner-prompt-card-${promptIdSafe}`}
+                data-prompt-id={prompt._id}
+                data-status="captain-submitted"
+                className="opacity-75 bg-gray-50"
+            >
                 <CardHeader><CardTitle className="text-lg">{prompt.text}</CardTitle></CardHeader>
                 <CardContent>
-                    <div className="text-green-600 font-bold">Answer Submitted by Team!</div>
+                    <div id={`corner-submitted-${promptIdSafe}`} className="text-green-600 font-bold">Answer Submitted by Team!</div>
                     <div className="text-sm text-gray-500 mt-1">"{captainSubmission.text}"</div>
                 </CardContent>
             </Card>
@@ -67,49 +97,82 @@ function CornerManSuggestionCard({ prompt, game, playerId, submitSuggestion, cap
     }
 
     return (
-        <Card>
+        <Card
+            id={`corner-prompt-card-${promptIdSafe}`}
+            data-prompt-id={prompt._id}
+            data-status="pending"
+            data-captain-is-bot={captainIsBot}
+        >
             <CardHeader><CardTitle className="text-lg">{prompt.text}</CardTitle></CardHeader>
             <CardContent>
                 <div className="flex gap-2">
                     <Input
+                        id={`corner-suggestion-input-${promptIdSafe}`}
+                        data-testid={`corner-suggestion-input-${promptIdSafe}`}
+                        data-prompt-id={prompt._id}
+                        aria-label={captainIsBot ? `Type answer for Bot captain: ${prompt.text}` : `Suggest an answer for: ${prompt.text}`}
                         placeholder={captainIsBot ? "Type answer for Bot..." : "Suggest an answer..."}
                         value={suggestionText}
                         onChange={e => setSuggestionText(e.target.value)}
                         disabled={isSubmitted}
                     />
-                    <Button onClick={async () => {
-                        if (!suggestionText) return;
-                        await submitSuggestion({
-                            gameId: game._id,
-                            playerId: playerId!,
-                            promptId: prompt._id,
-                            text: suggestionText
-                        });
-                        setSuggestionText("");
-                    }}>
+                    <Button
+                        id={`corner-suggest-button-${promptIdSafe}`}
+                        data-testid={`corner-suggest-button-${promptIdSafe}`}
+                        data-action="submit-suggestion"
+                        data-prompt-id={prompt._id}
+                        aria-label={`Suggest answer for: ${prompt.text}`}
+                        onClick={async () => {
+                            if (!suggestionText) return;
+                            try {
+                                await submitSuggestion({
+                                    gameId: game._id,
+                                    playerId: playerId!,
+                                    promptId: prompt._id,
+                                    text: suggestionText
+                                });
+                                setSuggestionText("");
+                            } catch (e: any) {
+                                showError("action-failed", e.message);
+                            }
+                        }}
+                    >
                         Suggest
                     </Button>
 
                     {captainIsBot && (
                         <Button
+                            id={`corner-submit-for-bot-${promptIdSafe}`}
+                            data-testid={`corner-submit-for-bot-${promptIdSafe}`}
+                            data-action="submit-answer-for-bot"
+                            data-prompt-id={prompt._id}
                             variant="destructive"
                             className="whitespace-nowrap"
+                            aria-label={`Submit answer for Bot for: ${prompt.text}`}
                             onClick={async () => {
                                 if (!suggestionText) return;
-                                await submitAnswer({
-                                    gameId: game._id,
-                                    playerId: captainId, // Submit AS the Bot
-                                    promptId: prompt._id,
-                                    text: suggestionText
-                                });
-                                setIsSubmitted(true);
+                                try {
+                                    await submitAnswer({
+                                        gameId: game._id,
+                                        playerId: captainId, // Submit AS the Bot
+                                        promptId: prompt._id,
+                                        text: suggestionText
+                                    });
+                                    setIsSubmitted(true);
+                                } catch (e: any) {
+                                    showError("submit-failed", e.message);
+                                }
                             }}
                         >
                             Submit as Answer
                         </Button>
                     )}
                 </div>
-                <div className="mt-4 text-xs text-gray-400">
+                <div
+                    id={`corner-suggestions-list-${promptIdSafe}`}
+                    data-suggestion-count={mySuggestions.length}
+                    className="mt-4 text-xs text-gray-400"
+                >
                     My Suggestions:
                     <ul className="list-disc pl-4 mt-1">
                         {mySuggestions.map((s: any, i: number) => <li key={i}>{s.text}</li>)}
@@ -133,6 +196,7 @@ interface WritingViewProps {
 
 export function WritingView({ game, playerId, startGame, submitAnswer, submitSuggestion }: WritingViewProps) {
     const [submittedPrompts, setSubmittedPrompts] = useState<Set<string>>(new Set());
+    const { error, showError, clearError } = useErrorState();
     const myPlayer = game.players.find((p) => p._id === playerId);
 
     // Determine Role
@@ -141,15 +205,34 @@ export function WritingView({ game, playerId, startGame, submitAnswer, submitSug
     const captain = game.players.find((p) => p._id === myTeamId);
     const captainIsBot = captain?.isBot;
 
+    // Calculate pending prompts for data attribute
+    const myPrompts = game.prompts?.filter((p) => p.assignedTo?.includes(playerId!)) || [];
+    const pendingPrompts = myPrompts.filter((p) => !game.submissions?.some((s) => s.promptId === p._id && s.playerId === playerId));
+
     if (isCornerMan) {
         // CORNER MAN VIEW
         // Find prompts assigned to my Captain (teamId)
-        const captainPrompts = game.prompts?.filter((p) => p.assignedTo?.includes(myTeamId!));
+        const captainPrompts = game.prompts?.filter((p) => p.assignedTo?.includes(myTeamId!)) || [];
+        const pendingCaptainPrompts = captainPrompts.filter((p) => !game.submissions?.some((s) => s.promptId === p._id && s.playerId === myTeamId));
 
         return (
-            <div className="space-y-6">
-                <div className="bg-yellow-900/10 border-yellow-500 border p-4 rounded text-center">
-                    <h2 className="text-xl font-bold text-yellow-600">CORNER MAN DUTY 🔔</h2>
+            <div
+                id="writing-view-corner-man"
+                data-game-phase="prompts"
+                data-player-role="corner-man"
+                data-captain-name={captain?.name}
+                data-captain-is-bot={captainIsBot}
+                data-prompts-pending={pendingCaptainPrompts.length}
+                data-prompts-total={captainPrompts.length}
+                className="space-y-6 relative"
+            >
+                <ErrorBanner error={error} onDismiss={clearError} />
+
+                <div
+                    id="corner-man-header"
+                    className="bg-yellow-900/10 border-yellow-500 border p-4 rounded text-center"
+                >
+                    <h2 id="corner-man-title" className="text-xl font-bold text-yellow-600">CORNER MAN DUTY 🔔</h2>
                     <p className="text-sm">
                         Assist your Captain ({captain?.name})!
                         {captainIsBot ? " Since they are a Bot, YOU control their answer." : " Send them suggestions."}
@@ -169,28 +252,46 @@ export function WritingView({ game, playerId, startGame, submitAnswer, submitSug
                             captainId={myTeamId}
                             captainIsBot={captainPlayer?.isBot}
                             submitAnswer={submitAnswer}
+                            showError={showError}
                         />
 
                     )
                 })}
-                {captainPrompts.length === 0 && <div className="text-center italic">Your Captain has no prompts pending.</div>}
+                {captainPrompts.length === 0 && <div id="no-prompts-message" className="text-center italic">Your Captain has no prompts pending.</div>}
             </div>
         );
     }
 
     // FIGHTER VIEW (Standard)
     return (
-        <div className="space-y-6">
-            <div className="flex justify-between items-center bg-yellow-100 p-4 rounded">
+        <div
+            id="writing-view-fighter"
+            data-game-phase="prompts"
+            data-player-role="fighter"
+            data-prompts-pending={pendingPrompts.length}
+            data-prompts-total={myPrompts.length}
+            data-all-submitted={pendingPrompts.length === 0}
+            className="space-y-6 relative"
+        >
+            <ErrorBanner error={error} onDismiss={clearError} />
+
+            <div
+                id="writing-header"
+                className="flex justify-between items-center bg-yellow-100 p-4 rounded"
+            >
                 <div>
-                    <h2 className="text-2xl font-bold mb-2">WRITING PHASE</h2>
+                    <h2 id="writing-phase-title" className="text-2xl font-bold mb-2">WRITING PHASE</h2>
                     <p>Answer these prompts creatively!</p>
                 </div>
                 {/* ADMIN RESET BUTTON */}
                 <Button
+                    id="reset-phase-button"
+                    data-testid="reset-phase-button"
+                    data-action="reset-phase"
                     variant="destructive"
                     size="sm"
-                    onClick={() => startGame({ gameId: game._id }).catch((e: any) => alert(e.message))}
+                    aria-label="Reset the current writing phase (Admin only)"
+                    onClick={() => startGame({ gameId: game._id }).catch((e: any) => showError("action-failed", e.message))}
                 >
                     Reset Phase
                 </Button>
@@ -210,7 +311,13 @@ export function WritingView({ game, playerId, startGame, submitAnswer, submitSug
                     let setValueCallback: ((value: string) => void) | null = null;
 
                     return (
-                        <div key={p._id} className="space-y-2">
+                        <div
+                            key={p._id}
+                            id={`prompt-container-${p._id}`}
+                            data-prompt-id={p._id}
+                            data-status={done ? "completed" : "pending"}
+                            className="space-y-2"
+                        >
                             <PromptCard
                                 prompt={p}
                                 initialValue=""
@@ -227,16 +334,28 @@ export function WritingView({ game, playerId, startGame, submitAnswer, submitSug
                                 onSetValue={(setter: (value: string) => void) => {
                                     setValueCallback = setter;
                                 }}
+                                showError={showError}
                             />
 
                             {/* Display Suggestions if any */}
                             {!done && mySuggestions && mySuggestions.length > 0 && (
-                                <div className="p-2 bg-blue-50 border border-blue-200 rounded text-sm">
+                                <div
+                                    id={`suggestions-container-${p._id}`}
+                                    data-suggestion-count={mySuggestions.length}
+                                    className="p-2 bg-blue-50 border border-blue-200 rounded text-sm"
+                                >
                                     <span className="font-bold text-blue-600 uppercase text-xs">Corner Man Suggestions:</span>
                                     <div className="flex flex-wrap gap-2 mt-1">
                                         {mySuggestions.map((s, i) => (
                                             <div
                                                 key={i}
+                                                id={`suggestion-chip-${p._id}-${i}`}
+                                                data-testid={`suggestion-chip-${p._id}-${i}`}
+                                                data-action="use-suggestion"
+                                                data-suggestion-text={s.text}
+                                                data-prompt-id={p._id}
+                                                role="button"
+                                                aria-label={`Use suggestion: ${s.text}`}
                                                 className="bg-white border border-blue-300 px-2 py-1 rounded-full text-blue-800 cursor-pointer hover:bg-blue-100 transition-colors"
                                                 title="Click to use this suggestion"
                                                 onClick={() => {
@@ -260,7 +379,7 @@ export function WritingView({ game, playerId, startGame, submitAnswer, submitSug
             {game.prompts?.filter((p) => p.assignedTo?.includes(playerId!))
                 .every((p) => submittedPrompts.has(p._id) || game.submissions?.some((s) => s.promptId === p._id && s.playerId === playerId))
                 && (
-                    <div className="text-center animate-pulse mt-4">
+                    <div id="waiting-for-others" data-status="waiting" className="text-center animate-pulse mt-4">
                         Waiting for other players to finish...
                     </div>
                 )}
