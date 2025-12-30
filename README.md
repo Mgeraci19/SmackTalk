@@ -12,7 +12,7 @@ SmackTalk is a 4-round elimination game for 4-8 players:
 
 ## 🚀 Live Demo
 
-Play now at: [https://mgeraci19.github.io/witlash/](https://mgeraci19.github.io/witlash/)
+Play now at: [https://mgeraci19.github.io/SmackTalk/](https://mgeraci19.github.io/SmackTalk/)
 
 ## 🛠️ Tech Stack
 
@@ -71,8 +71,8 @@ Play now at: [https://mgeraci19.github.io/witlash/](https://mgeraci19.github.io/
 
 1. **Clone the repository**
    ```bash
-   git clone https://github.com/Mgeraci19/witlash.git
-   cd witlash
+   git clone https://github.com/Mgeraci19/SmackTalk.git
+   cd SmackTalk
    ```
 
 2. **Install dependencies**
