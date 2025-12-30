@@ -208,8 +208,10 @@ export class BattleSequencer {
     context: AnimationContext,
     result: BattleResult
   ): gsap.core.Timeline {
-    // Choose KO animation based on config
-    const koId = this.config.useDramaticKO ? "dramatic-ko" : "ko";
+    // Choose KO animation based on config OR combo KO
+    const isComboKO = result.damage >= 999;
+    const koId = (this.config.useDramaticKO || isComboKO) ? "dramatic-ko" : "ko";
+    console.log(`[KO SEQUENCE] Creating KO animation: ${koId}, damage: ${result.damage}, isComboKO: ${isComboKO}`);
     const koAnimation = animationRegistry.get(koId);
 
     if (koAnimation) {

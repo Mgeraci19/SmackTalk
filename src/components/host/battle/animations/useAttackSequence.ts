@@ -46,6 +46,7 @@ export function playWinnerAttack({
   // Check for combo KO (3-win streak triggers instant KO)
   const winnerStreak = winner.winStreak || 0;
   const isComboKO = isKO && winnerStreak >= 2; // 3rd win = instant KO
+  console.log(`[ATTACK SEQUENCE] Winner: ${winner?.name}, winStreak: ${winnerStreak}, isKO: ${isKO}, isComboKO: ${isComboKO}`);
 
   // Set winner to attacking state
   if (winnerIsLeft) {
@@ -64,6 +65,7 @@ export function playWinnerAttack({
   if (isKO) {
     // Show combo message if applicable
     if (isComboKO) {
+      console.log(`[COMBO KO TRIGGERED!] Setting tie message: COMBO x${winnerStreak + 1} INSTANT KO!`);
       actions.setTieMessage(`COMBO x${winnerStreak + 1} INSTANT KO!`);
     }
 

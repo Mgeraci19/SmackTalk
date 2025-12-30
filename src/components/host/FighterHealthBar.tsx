@@ -16,6 +16,8 @@ interface FighterHealthBarProps {
 }
 
 export function FighterHealthBar({ name, hp, maxHp, side, isWinner, showDamage, avatar, winStreak }: FighterHealthBarProps) {
+    console.log(`[FIGHTER HP BAR] Render - ${name}, winStreak: ${winStreak}, shouldShowCombo: ${(winStreak ?? 0) >= 1}`);
+
     const hpBarRef = useRef<HTMLDivElement>(null);
     const damageRef = useRef<HTMLDivElement>(null);
     const prevHpRef = useRef(hp);
@@ -88,13 +90,13 @@ export function FighterHealthBar({ name, hp, maxHp, side, isWinner, showDamage, 
                 </div>
 
                 {/* Combo Indicator */}
-                {winStreak && winStreak >= 1 && (
+                {(winStreak ?? 0) >= 1 && (
                     <div className={`px-3 py-1 rounded-full font-bold text-sm ${
-                        winStreak >= 2
+                        winStreak && winStreak >= 2
                             ? "bg-gradient-to-r from-yellow-500 to-orange-500 text-white animate-pulse"
                             : "bg-blue-500 text-white"
                     }`}>
-                        {winStreak >= 2 ? "🔥 COMBO x3 - INSTANT KO!" : "⚡ COMBO x2 - BONUS DMG"}
+                        {winStreak && winStreak >= 2 ? "🔥 COMBO x3 - INSTANT KO!" : "⚡ COMBO x2 - BONUS DMG"}
                     </div>
                 )}
             </div>

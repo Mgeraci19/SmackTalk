@@ -80,6 +80,10 @@ export function BattleArena({
 
     hasRevealedRef.current = true;
 
+    const winner = leftBattler.isWinner ? leftBattler : rightBattler;
+    console.log(`[BATTLE REVEAL] Starting reveal sequence, winner: ${winner.name}`);
+    console.log(`[BATTLE REVEAL] Left: ${leftBattler.name} (winStreak: ${leftBattler.winStreak}), Right: ${rightBattler.name} (winStreak: ${rightBattler.winStreak})`);
+
     // Build the reveal timeline
     const timeline = gsap.timeline();
 

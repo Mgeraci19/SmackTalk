@@ -118,6 +118,8 @@ export function HostVotingView({ game, showWritingIndicator = false }: HostVotin
         const loserVotesFor = loserIsLeft ? leftVotesFor : rightVotesFor;
         const votesAgainst = total - loserVotesFor;
 
+        console.log(`[COMBO CHECK] Winner: ${winnerPlayer?.name}, winStreak: ${winnerStreak}, base damage: ${((votesAgainst / total) * DAMAGE_CAP * getRoundMultiplier(game.currentRound)).toFixed(0)}`);
+
         let damage = (votesAgainst / total) * DAMAGE_CAP * getRoundMultiplier(game.currentRound);
 
         // Apply combo bonuses (matches backend logic)
@@ -174,6 +176,16 @@ export function HostVotingView({ game, showWritingIndicator = false }: HostVotin
     });
   }, [currentSubmissions, game.players, voteCounts, isReveal, totalVotes, maxVotes, votersBySubmission]);
 
+  // Create stable identifier for corner man assignments (only changes on role transitions)
+  const cornerManIds = useMemo(
+    () => game.players
+      .filter(p => p.role === "CORNER_MAN" && p.teamId)
+      .map(p => `${p._id}:${p.teamId}`)
+      .sort()
+      .join(','),
+    [game.players]
+  );
+
   const leftBattler = battlers[0];
   const rightBattler = battlers[1];
 
@@ -197,6 +209,10 @@ export function HostVotingView({ game, showWritingIndicator = false }: HostVotin
       }
     : null;
 
+  if (leftBattlerInfo) {
+    console.log(`[HP BAR DATA] Left fighter: ${leftBattlerInfo.name}, winStreak: ${leftBattlerInfo.winStreak}`);
+  }
+
   const rightBattlerInfo = rightBattler
     ? {
         id: rightBattler._id as string,
@@ -212,6 +228,10 @@ export function HostVotingView({ game, showWritingIndicator = false }: HostVotin
         winStreak: rightBattler.player?.winStreak,
       }
     : null;
+
+  if (rightBattlerInfo) {
+    console.log(`[HP BAR DATA] Right fighter: ${rightBattlerInfo.name}, winStreak: ${rightBattlerInfo.winStreak}`);
+  }
 
   // Initialize animated HP from player data
   useEffect(() => {
@@ -283,7 +303,7 @@ export function HostVotingView({ game, showWritingIndicator = false }: HostVotin
     } else {
       console.log("[CORNER MAN CHECK] No new corner man assignments detected");
     }
-  }, [game.currentRound, game.roundStatus, game.players, game.currentPromptId]);
+  }, [game.currentRound, game.roundStatus, cornerManIds, game.currentPromptId]);
 
   // Callbacks
   const handleBattleComplete = useCallback(() => {

@@ -38,26 +38,10 @@ export function FighterWritingView({ game, playerId, sessionToken, startGame, su
 
             <div
                 id="writing-header"
-                className="flex justify-between items-center bg-yellow-100 p-4 rounded"
+                className="bg-yellow-100 p-4 rounded"
             >
-                <div>
-                    <h2 id="writing-phase-title" className="text-2xl font-bold mb-2">WRITING PHASE</h2>
-                    <p>Answer these prompts creatively!</p>
-                </div>
-                {/* ADMIN RESET BUTTON - Only show when there are pending prompts */}
-                {pendingPrompts.length > 0 && (
-                    <Button
-                        id="reset-phase-button"
-                        data-testid="reset-phase-button"
-                        data-action="reset-phase"
-                        variant="destructive"
-                        size="sm"
-                        aria-label="Reset the current writing phase (Admin only)"
-                        onClick={() => playerId && startGame({ gameId: game._id, playerId, sessionToken }).catch((e) => showError("action-failed", (e as Error).message))}
-                    >
-                        Reset Phase
-                    </Button>
-                )}
+                <h2 id="writing-phase-title" className="text-2xl font-bold mb-2">WRITING PHASE</h2>
+                <p>Answer these prompts creatively!</p>
             </div>
 
             {game.prompts

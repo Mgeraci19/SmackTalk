@@ -54,7 +54,7 @@ export function SuggestionCard({ prompt, game, playerId, sessionToken, submitSug
         >
             <CardHeader><CardTitle className="text-lg">{prompt.text}</CardTitle></CardHeader>
             <CardContent>
-                <div className="flex gap-2">
+                <div className="flex flex-col sm:flex-row gap-2">
                     <Input
                         id={`corner-suggestion-input-${promptIdSafe}`}
                         data-testid={`corner-suggestion-input-${promptIdSafe}`}
