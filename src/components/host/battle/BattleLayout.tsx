@@ -3,6 +3,15 @@
 import { AvatarFighter } from "../AvatarFighter";
 import { BattlerInfo, BattleRefs, BattleState, getVisibilityFlags } from "./types";
 
+function formatSubmissionTime(timestamp: number): string {
+  const date = new Date(timestamp);
+  return date.toLocaleTimeString('en-US', {
+    hour: '2-digit',
+    minute: '2-digit',
+    second: '2-digit'
+  });
+}
+
 interface BattleLayoutProps {
   leftBattler: BattlerInfo;
   rightBattler: BattlerInfo;
@@ -95,9 +104,16 @@ export function BattleLayout({
               `}
             >
               {showAuthors && (
-                <div className="text-base md:text-lg text-gray-400 text-center mb-2">
-                  {firstAnswer.name}
-                </div>
+                <>
+                  <div className="text-base md:text-lg text-gray-400 text-center mb-1">
+                    {firstAnswer.name}
+                  </div>
+                  {firstAnswer.submissionTime && (
+                    <div className="text-xs text-gray-500 text-center mb-2">
+                      Submitted: {formatSubmissionTime(firstAnswer.submissionTime)}
+                    </div>
+                  )}
+                </>
               )}
               <div className="text-xl md:text-2xl lg:text-3xl text-white text-center font-medium leading-relaxed">
                 {firstAnswer.answer}
@@ -111,8 +127,15 @@ export function BattleLayout({
                     {(answerOrder.first === "left" ? displayedVotes.left : displayedVotes.right) === 1 ? "" : "s"}
                   </div>
                   {firstAnswer.voters && firstAnswer.voters.length > 0 && (
-                    <div className="text-center mt-2 text-base md:text-lg text-gray-300">
-                      {firstAnswer.voters.join(", ")}
+                    <div className="flex flex-wrap justify-center gap-2 mt-3">
+                      {firstAnswer.voters.map((voter, i) => (
+                        <div
+                          key={i}
+                          className="px-3 py-1 bg-blue-600/30 text-blue-200 rounded-full font-bold text-sm md:text-base border border-blue-400/50"
+                        >
+                          {voter}
+                        </div>
+                      ))}
                     </div>
                   )}
                 </>
@@ -145,9 +168,16 @@ export function BattleLayout({
               `}
             >
               {showAuthors && (
-                <div className="text-base md:text-lg text-gray-400 text-center mb-2">
-                  {secondAnswer.name}
-                </div>
+                <>
+                  <div className="text-base md:text-lg text-gray-400 text-center mb-1">
+                    {secondAnswer.name}
+                  </div>
+                  {secondAnswer.submissionTime && (
+                    <div className="text-xs text-gray-500 text-center mb-2">
+                      Submitted: {formatSubmissionTime(secondAnswer.submissionTime)}
+                    </div>
+                  )}
+                </>
               )}
               <div className="text-xl md:text-2xl lg:text-3xl text-white text-center font-medium leading-relaxed">
                 {secondAnswer.answer}
@@ -161,8 +191,15 @@ export function BattleLayout({
                     {(answerOrder.second === "left" ? displayedVotes.left : displayedVotes.right) === 1 ? "" : "s"}
                   </div>
                   {secondAnswer.voters && secondAnswer.voters.length > 0 && (
-                    <div className="text-center mt-2 text-base md:text-lg text-gray-300">
-                      {secondAnswer.voters.join(", ")}
+                    <div className="flex flex-wrap justify-center gap-2 mt-3">
+                      {secondAnswer.voters.map((voter, i) => (
+                        <div
+                          key={i}
+                          className="px-3 py-1 bg-blue-600/30 text-blue-200 rounded-full font-bold text-sm md:text-base border border-blue-400/50"
+                        >
+                          {voter}
+                        </div>
+                      ))}
                     </div>
                   )}
                 </>
