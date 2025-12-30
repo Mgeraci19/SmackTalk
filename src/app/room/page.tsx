@@ -123,11 +123,12 @@ function RoomContent() {
         >
             <ErrorBanner error={error} onDismiss={clearError} />
 
-            {/* LLM Context - Hidden JSON for programmatic access */}
-            <script
+            {/* LLM Context - Hidden JSON for programmatic access (safe: uses data attribute, not innerHTML) */}
+            <div
                 id="llm-game-context"
-                type="application/json"
-                dangerouslySetInnerHTML={{ __html: JSON.stringify(llmContext, null, 2) }}
+                data-context={JSON.stringify(llmContext)}
+                style={{ display: 'none' }}
+                aria-hidden="true"
             />
 
             {/* Accessible Game Status Banner */}
