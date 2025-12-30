@@ -172,9 +172,10 @@ export const castVotes = mutation({
         const bots = players.filter((p) => p.isBot);
 
         const battlerIds = submissions.map((s) => s.playerId);
-        const targetSubmission = submissions[0];
 
         for (const bot of bots) {
+            // Each bot randomly picks a submission to vote for
+            const targetSubmission = submissions[Math.floor(Math.random() * submissions.length)];
             // Skip if bot is battling
             if (battlerIds.includes(bot._id)) continue;
 

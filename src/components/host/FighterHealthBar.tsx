@@ -65,8 +65,7 @@ export function FighterHealthBar({ name, hp, maxHp, side, isWinner, showDamage, 
                 {/* Fighter Name */}
                 <div className={`text-2xl font-bold ${isWinner ? "text-yellow-400" : "text-white"}`}>
                     {name}
-                    {isWinner && <span className="ml-2 text-sm">WINNER</span>}
-                </div>
+                    </div>
             </div>
 
             {/* HP Bar Container */}

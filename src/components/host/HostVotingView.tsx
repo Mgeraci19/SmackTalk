@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState, useCallback, useEffect } from "react";
+import { useMemo, useState, useCallback, useEffect, useRef } from "react";
 import { GameState } from "@/lib/types";
 import { FighterHealthBar } from "./FighterHealthBar";
 import { BattleArena } from "./BattleArena";
@@ -15,6 +15,11 @@ export function HostVotingView({ game }: HostVotingViewProps) {
 
   // Track battle completion for status display
   const [battleComplete, setBattleComplete] = useState(false);
+
+  // Local HP tracking for animation sync (animated values, not source of truth)
+  const [animatedLeftHp, setAnimatedLeftHp] = useState<number | null>(null);
+  const [animatedRightHp, setAnimatedRightHp] = useState<number | null>(null);
+  const hasInitializedHp = useRef(false);
 
   // Get current prompt and its submissions
   const currentPrompt = game.prompts?.find((p) => p._id === game.currentPromptId);
@@ -109,6 +114,18 @@ export function HostVotingView({ game }: HostVotingViewProps) {
       }
     : null;
 
+  // Initialize animated HP from player data
+  useEffect(() => {
+    if (leftBattler?.player && rightBattler?.player) {
+      // Only initialize once per prompt, or when prompt changes
+      if (!hasInitializedHp.current) {
+        setAnimatedLeftHp(leftBattler.player.hp ?? 100);
+        setAnimatedRightHp(rightBattler.player.hp ?? 100);
+        hasInitializedHp.current = true;
+      }
+    }
+  }, [leftBattler?.player, rightBattler?.player]);
+
   // Callbacks
   const handleBattleComplete = useCallback(() => {
     setBattleComplete(true);
@@ -116,15 +133,25 @@ export function HostVotingView({ game }: HostVotingViewProps) {
 
   const handleDamageApplied = useCallback((side: BattleSide, damage: number) => {
     console.log(`[HostVotingView] Damage applied to ${side}: ${damage}`);
-    // HP is managed by Convex, this is just for visual feedback
+    // Update local animated HP immediately for visual feedback
+    if (side === "left") {
+      setAnimatedLeftHp((prev) => Math.max(0, (prev ?? 100) - damage));
+    } else {
+      setAnimatedRightHp((prev) => Math.max(0, (prev ?? 100) - damage));
+    }
   }, []);
 
-  // Reset battle complete when prompt changes
-  // Note: setState in effect is intentional here to reset UI state when prompt changes
+  // Reset battle complete and HP tracking when prompt changes
   useEffect(() => {
-    // eslint-disable-next-line react-hooks/set-state-in-effect
     setBattleComplete(false);
-  }, [game.currentPromptId]);
+    hasInitializedHp.current = false;
+    // Re-initialize HP from current player data
+    if (leftBattler?.player && rightBattler?.player) {
+      setAnimatedLeftHp(leftBattler.player.hp ?? 100);
+      setAnimatedRightHp(rightBattler.player.hp ?? 100);
+      hasInitializedHp.current = true;
+    }
+  }, [game.currentPromptId, leftBattler?.player, rightBattler?.player]);
 
   return (
     <div
@@ -132,66 +159,65 @@ export function HostVotingView({ game }: HostVotingViewProps) {
       data-phase="VOTING"
       data-round-status={game.roundStatus}
       data-prompt-id={game.currentPromptId}
-      className="flex flex-col min-h-screen p-8"
+      className="flex flex-col h-screen p-4 overflow-hidden"
     >
-      {/* Health Bars at Top */}
-      <div className="flex justify-between items-start gap-8 mb-8">
-        {leftBattler?.player && (
-          <FighterHealthBar
-            name={leftBattler.player.name}
-            hp={leftBattler.player.hp || 0}
-            maxHp={leftBattler.player.maxHp || 100}
-            side="left"
-            isWinner={battleComplete && leftBattler.isWinner}
-            avatar={leftBattler.player.avatar}
-          />
-        )}
-        {rightBattler?.player && (
-          <FighterHealthBar
-            name={rightBattler.player.name}
-            hp={rightBattler.player.hp || 0}
-            maxHp={rightBattler.player.maxHp || 100}
-            side="right"
-            isWinner={battleComplete && rightBattler.isWinner}
-            avatar={rightBattler.player.avatar}
-          />
-        )}
+      {/* Header Bar: HP bars on sides, Round in center */}
+      <div className="flex items-start gap-4 mb-2 flex-shrink-0">
+        {/* Left HP Bar */}
+        <div className="w-72 flex-shrink-0">
+          {leftBattler?.player && (
+            <FighterHealthBar
+              name={leftBattler.player.name}
+              hp={animatedLeftHp ?? leftBattler.player.hp ?? 0}
+              maxHp={leftBattler.player.maxHp || 100}
+              side="left"
+              isWinner={battleComplete && leftBattler.isWinner}
+              avatar={leftBattler.player.avatar}
+            />
+          )}
+        </div>
+
+        {/* Center: Round indicator only */}
+        <div className="flex-1 text-center">
+          <div className="text-2xl font-bold text-gray-300">Round {game.currentRound}</div>
+        </div>
+
+        {/* Right HP Bar */}
+        <div className="w-72 flex-shrink-0">
+          {rightBattler?.player && (
+            <FighterHealthBar
+              name={rightBattler.player.name}
+              hp={animatedRightHp ?? rightBattler.player.hp ?? 0}
+              maxHp={rightBattler.player.maxHp || 100}
+              side="right"
+              isWinner={battleComplete && rightBattler.isWinner}
+              avatar={rightBattler.player.avatar}
+            />
+          )}
+        </div>
       </div>
 
-      {/* Round Indicator */}
-      <div className="text-xl text-gray-400 text-center mb-2">Round {game.currentRound}</div>
-
-      {/* Prompt */}
-      {currentPrompt && (
-        <div className="text-2xl text-center mb-8 max-w-4xl mx-auto italic text-gray-300">
-          &ldquo;{currentPrompt.text}&rdquo;
-        </div>
-      )}
-
-      {/* Battle Arena */}
-      <div className="flex-1 flex items-center justify-center">
+      {/* Battle Arena - Takes remaining space */}
+      <div className="flex-1 min-h-0">
         <BattleArena
           leftBattler={leftBattlerInfo}
           rightBattler={rightBattlerInfo}
           isReveal={isReveal}
           promptId={game.currentPromptId}
+          promptText={currentPrompt?.text}
           onBattleComplete={handleBattleComplete}
           onDamageApplied={handleDamageApplied}
         />
       </div>
 
-      {/* Status */}
-      <div className="text-center mt-8">
-        {!isReveal ? (
-          <div className="text-2xl text-gray-400 animate-pulse">Players are voting...</div>
-        ) : battleComplete ? (
-          <div className="text-xl text-gray-500">
+      {/* Status - Only show result after battle complete */}
+      {battleComplete && (
+        <div className="text-center py-2 flex-shrink-0">
+          <div className="text-lg text-gray-500">
             {winner ? `${winner.player?.name} wins this round!` : "It's a tie!"}
           </div>
-        ) : (
-          <div className="text-xl text-gray-500 animate-pulse">Revealing results...</div>
-        )}
-      </div>
+        </div>
+      )}
     </div>
   );
 }
