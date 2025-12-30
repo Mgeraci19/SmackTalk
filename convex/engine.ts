@@ -21,6 +21,8 @@ export const nextBattle = mutation({
         const game = await ctx.db.get(args.gameId);
         if (!game) return;
 
+        console.log(`[NEXT BATTLE] Called for round ${game.currentRound}, promptId: ${game.currentPromptId}`);
+
         // Damage Calculation
         if (game.currentPromptId) {
             await resolveBattle(ctx, args.gameId, game.currentPromptId, game.currentRound);
