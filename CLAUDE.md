@@ -12,7 +12,16 @@ npm run dev          # Start dev server
 npm run build        # Production build (use GITHUB_ACTIONS=true for CI)
 npm run lint         # ESLint
 npm run typecheck    # TypeScript check
+npm run test:backend # Convex backend tests (54 tests)
+npm run test:frontend # React component tests (15 tests)
 ```
+
+## CI/Testing
+- **CI**: GitHub Actions on PRs + main push (`.github/workflows/ci.yml`)
+- **Backend**: `convex-test` + Vitest - tests auth, lobby, actions, engine
+- **Frontend**: Vitest + happy-dom + React Testing Library - smoke tests
+- Tests colocated with source (`*.test.ts` next to `*.ts`)
+- See `CI_TESTING_SETUP.md` for detailed setup docs
 
 ## Architecture Overview
 
