@@ -203,29 +203,31 @@ export function BattleArena({
 
     const timeline = gsap.timeline();
 
-    // Phase: Sliding
+    // Phase: Sliding - reveal authors first
     setPhase("sliding");
 
-    // Slide answers to their sides (using percentage-based positioning)
+    // Pause for "who wrote that?!" reaction
+    timeline.to({}, { duration: 1.2 });
+
+    // Slide answers to the sides
     const leftAnswerRef = answerOrder.first === "left" ? answer1Ref : answer2Ref;
     const rightAnswerRef = answerOrder.first === "right" ? answer1Ref : answer2Ref;
 
-    // Slide left answer to left side
     timeline.to(leftAnswerRef.current, {
-      x: "-60%",
+      x: "-120%",
+      scale: 0.7,
+      opacity: 0.8,
       duration: 0.6,
-      ease: "power2.out",
-    }, 0);
+      ease: "power2.inOut",
+    }, "slide");
 
-    // Slide right answer to right side
     timeline.to(rightAnswerRef.current, {
-      x: "60%",
+      x: "120%",
+      scale: 0.7,
+      opacity: 0.8,
       duration: 0.6,
-      ease: "power2.out",
-    }, 0);
-
-    // Pause for reaction
-    timeline.to({}, { duration: 1.2 });
+      ease: "power2.inOut",
+    }, "slide");
 
     // Phase: Revealing votes
     timeline.call(() => setPhase("revealing"));
@@ -246,19 +248,37 @@ export function BattleArena({
     }
 
     // Pause after votes shown
-    timeline.to({}, { duration: 0.5 });
+    timeline.to({}, { duration: 0.8 });
+
+    // Push fighters toward center
+    timeline.to(leftFighterRef.current, {
+      x: 100,
+      duration: 0.4,
+      ease: "power2.out",
+    }, "push");
+
+    timeline.to(rightFighterRef.current, {
+      x: -100,
+      duration: 0.4,
+      ease: "power2.out",
+    }, "push");
 
     // Phase: Attacking
     timeline.call(() => {
       setPhase("attacking");
 
       const winner = leftBattler.isWinner ? leftBattler : rightBattler.isWinner ? rightBattler : null;
+      const loser = leftBattler.isWinner ? rightBattler : rightBattler.isWinner ? leftBattler : null;
 
-      if (winner) {
+      if (winner && loser) {
         const totalVotes = leftBattler.voteCount + rightBattler.voteCount;
         const DAMAGE_CAP = 35;
         const loserVotes = winner === leftBattler ? rightBattler.voteCount : leftBattler.voteCount;
         const damage = totalVotes > 0 ? Math.floor((loserVotes / totalVotes) * DAMAGE_CAP) : 0;
+
+        // Check if this will KO the loser
+        const loserNewHp = (loser.hp || 100) - damage;
+        const isKO = loserNewHp <= 0;
 
         if (leftBattler.isWinner) {
           setLeftState("attacking");
@@ -266,15 +286,69 @@ export function BattleArena({
           setRightState("attacking");
         }
 
-        battleActionsRef.current.playBattle({
-          winnerId: winner.id,
-          winnerSide: leftBattler.isWinner ? "left" : "right",
-          loserId: leftBattler.isWinner ? rightBattler.id : leftBattler.id,
-          loserSide: leftBattler.isWinner ? "right" : "left",
-          damage,
-          isKO: false,
-          voteCount: winner.voteCount,
-        });
+        // If KO, do the bump-off animation after attack
+        if (isKO) {
+          const loserRef = leftBattler.isWinner ? rightFighterRef : leftFighterRef;
+          const direction = leftBattler.isWinner ? 1 : -1;
+
+          // Attack first, then bump off
+          const attackTimeline = gsap.timeline({
+            onComplete: () => {
+              // Bump loser offscreen
+              gsap.to(loserRef.current, {
+                x: direction * 800,
+                rotation: direction * 720,
+                opacity: 0,
+                duration: 0.8,
+                ease: "power2.in",
+                onComplete: () => {
+                  if (leftBattler.isWinner) {
+                    setRightState("ko");
+                  } else {
+                    setLeftState("ko");
+                  }
+                  setPhase("complete");
+                  onBattleCompleteRef.current?.();
+                }
+              });
+            }
+          });
+
+          // Quick attack animation
+          const winnerRef = leftBattler.isWinner ? leftFighterRef : rightFighterRef;
+          attackTimeline.to(winnerRef.current, {
+            x: direction * 150,
+            duration: 0.15,
+            ease: "power2.in",
+          });
+          attackTimeline.to(winnerRef.current, {
+            x: direction * 100,
+            duration: 0.1,
+            ease: "power2.out",
+          });
+
+          // Hurt flash on loser
+          attackTimeline.call(() => {
+            if (leftBattler.isWinner) {
+              setRightState("hurt");
+            } else {
+              setLeftState("hurt");
+            }
+            onDamageAppliedRef.current?.(leftBattler.isWinner ? "right" : "left", damage);
+          }, [], "-=0.1");
+
+        } else {
+          // Normal attack (not KO)
+          battleActionsRef.current.playBattle({
+            winnerId: winner.id,
+            winnerSide: leftBattler.isWinner ? "left" : "right",
+            loserId: leftBattler.isWinner ? rightBattler.id : leftBattler.id,
+            loserSide: leftBattler.isWinner ? "right" : "left",
+            damage,
+            isKO: false,
+            voteCount: winner.voteCount,
+          });
+        }
       } else {
         // Tie - just complete
         setPhase("complete");
@@ -306,7 +380,7 @@ export function BattleArena({
 
   const showVotes = phase === "revealing" || phase === "attacking" || phase === "complete";
   const showWinner = phase === "attacking" || phase === "complete";
-  const isSlid = phase === "sliding" || phase === "revealing" || phase === "attacking" || phase === "complete";
+  const showAuthors = phase === "sliding" || phase === "revealing" || phase === "attacking" || phase === "complete";
 
   return (
     <div
@@ -338,38 +412,18 @@ export function BattleArena({
             isWinner={showWinner && leftBattler.isWinner}
             size="large"
           />
-          {/* Vote display under avatar */}
-          {isSlid && showVotes && (
-            <div className={`mt-2 text-center ${showWinner && leftBattler.isWinner ? "text-yellow-400" : "text-gray-400"}`}>
-              <div className="text-2xl font-bold">{displayedVotes.left}</div>
-              <div className="text-xs">vote{displayedVotes.left === 1 ? "" : "s"}</div>
-            </div>
-          )}
         </div>
 
         {/* Center - Answers and VS */}
         <div className="flex-1 flex flex-col items-center justify-center px-4 min-w-0 max-w-3xl mx-auto">
-          {/* VS Badge */}
-          <div
-            className="text-5xl font-bold text-red-500 mb-4"
-            style={{
-              textShadow: "0 0 20px rgba(255,0,0,0.5)",
-              fontFamily: "'Impact', 'Arial Black', sans-serif",
-              opacity: phase === "question" || phase === "avatars_push" || phase === "slam1" || phase === "slam2" || phase === "voting" ? 1 : 0,
-              transition: "opacity 0.3s",
-            }}
-          >
-            VS
-          </div>
-
-          {/* Stacked Answers */}
-          <div className="w-full space-y-4">
+          {/* Stacked Answers with VS in between */}
+          <div className="w-full flex flex-col items-center">
             {/* First Answer */}
             <div
               ref={answer1Ref}
               className={`
-                w-full max-w-xl mx-auto
-                rounded-xl p-5
+                w-full max-w-2xl
+                rounded-xl p-6
                 transition-colors duration-300
                 ${showWinner && firstAnswer?.isWinner
                   ? "bg-green-900/50 ring-2 ring-yellow-400"
@@ -380,17 +434,44 @@ export function BattleArena({
               `}
               style={{ opacity: 0, transform: "scale(0.5)" }}
             >
-              <div className="text-2xl md:text-3xl text-white text-center font-medium leading-relaxed">
+              {/* Author name - shown after slide phase */}
+              {showAuthors && (
+                <div className="text-sm text-gray-400 text-center mb-2">
+                  {firstAnswer?.name}
+                </div>
+              )}
+              <div className="text-3xl md:text-4xl text-white text-center font-medium leading-relaxed">
                 {firstAnswer?.answer}
               </div>
+              {/* Vote count */}
+              {showVotes && (
+                <div className={`text-center mt-3 text-xl font-bold ${
+                  showWinner && firstAnswer?.isWinner ? "text-yellow-400" : "text-gray-400"
+                }`}>
+                  {answerOrder.first === "left" ? displayedVotes.left : displayedVotes.right} vote{(answerOrder.first === "left" ? displayedVotes.left : displayedVotes.right) === 1 ? "" : "s"}
+                </div>
+              )}
+            </div>
+
+            {/* VS Badge - Between answers */}
+            <div
+              className="text-5xl font-bold text-red-500 my-3"
+              style={{
+                textShadow: "0 0 20px rgba(255,0,0,0.5)",
+                fontFamily: "'Impact', 'Arial Black', sans-serif",
+                opacity: phase === "question" || phase === "avatars_push" || phase === "slam1" || phase === "slam2" || phase === "voting" ? 1 : 0,
+                transition: "opacity 0.3s",
+              }}
+            >
+              VS
             </div>
 
             {/* Second Answer */}
             <div
               ref={answer2Ref}
               className={`
-                w-full max-w-xl mx-auto
-                rounded-xl p-5
+                w-full max-w-2xl
+                rounded-xl p-6
                 transition-colors duration-300
                 ${showWinner && secondAnswer?.isWinner
                   ? "bg-green-900/50 ring-2 ring-yellow-400"
@@ -401,9 +482,23 @@ export function BattleArena({
               `}
               style={{ opacity: 0, transform: "scale(0.5)" }}
             >
-              <div className="text-2xl md:text-3xl text-white text-center font-medium leading-relaxed">
+              {/* Author name - shown after slide phase */}
+              {showAuthors && (
+                <div className="text-sm text-gray-400 text-center mb-2">
+                  {secondAnswer?.name}
+                </div>
+              )}
+              <div className="text-3xl md:text-4xl text-white text-center font-medium leading-relaxed">
                 {secondAnswer?.answer}
               </div>
+              {/* Vote count */}
+              {showVotes && (
+                <div className={`text-center mt-3 text-xl font-bold ${
+                  showWinner && secondAnswer?.isWinner ? "text-yellow-400" : "text-gray-400"
+                }`}>
+                  {answerOrder.second === "left" ? displayedVotes.left : displayedVotes.right} vote{(answerOrder.second === "left" ? displayedVotes.left : displayedVotes.right) === 1 ? "" : "s"}
+                </div>
+              )}
             </div>
           </div>
 
@@ -426,13 +521,6 @@ export function BattleArena({
             isWinner={showWinner && rightBattler.isWinner}
             size="large"
           />
-          {/* Vote display under avatar */}
-          {isSlid && showVotes && (
-            <div className={`mt-2 text-center ${showWinner && rightBattler.isWinner ? "text-yellow-400" : "text-gray-400"}`}>
-              <div className="text-2xl font-bold">{displayedVotes.right}</div>
-              <div className="text-xs">vote{displayedVotes.right === 1 ? "" : "s"}</div>
-            </div>
-          )}
         </div>
       </div>
     </div>

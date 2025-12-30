@@ -172,13 +172,6 @@ export const AvatarFighter = forwardRef<HTMLDivElement, AvatarFighterProps>(
             </div>
           )}
 
-          {/* Winner Badge - inside avatar box */}
-          {isWinner && (
-            <div className="absolute bottom-2 left-1/2 -translate-x-1/2 bg-yellow-500 text-black px-2 py-0.5 rounded text-xs font-bold shadow-lg">
-              ★ WINNER ★
-            </div>
-          )}
-
           {/* KO Indicator */}
           {isKO && (
             <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 text-4xl font-bold text-red-500 rotate-12">

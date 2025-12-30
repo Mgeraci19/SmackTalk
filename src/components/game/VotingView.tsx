@@ -186,11 +186,6 @@ export function VotingView({ game, playerId, sessionToken, isVip, submitVote, ne
                                 data-author-name={author?.name}
                                 className="relative"
                             >
-                                {isWinner && (
-                                    <div id={`winner-badge-${index}`} className="absolute -top-3 -right-3 z-10 bg-yellow-400 text-yellow-900 px-3 py-1 rounded-full font-bold shadow-lg animate-bounce border-2 border-white transform rotate-12">
-                                        WINNER!
-                                    </div>
-                                )}
                                 <Button
                                     id={`vote-button-${s._id}`}
                                     data-testid={`vote-button-${index}`}
