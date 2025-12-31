@@ -6,10 +6,10 @@ import { AvatarFighter } from "../AvatarFighter";
 import { TransitionProps } from "./types";
 
 /**
- * CornerMenReveal - Shows teams with their corner men before Round 3
+ * RoundRobinReveal - Shows remaining captains entering Round 3 (Round Robin)
  *
- * Displays all surviving fighters with their assigned corner men,
- * highlighting the team structure for the Gauntlet round.
+ * Displays all surviving fighters ready for the round robin phase,
+ * where fighting continues until only 2 remain.
  */
 export function CornerMenReveal({ gameState, onComplete }: TransitionProps) {
   const overlayRef = useRef<HTMLDivElement>(null);
@@ -126,80 +126,52 @@ export function CornerMenReveal({ gameState, onComplete }: TransitionProps) {
         {/* Title */}
         <div
           ref={titleRef}
-          className="text-5xl md:text-7xl font-bold text-yellow-400 mb-12"
-          style={{ textShadow: "0 0 40px rgba(255,200,0,0.8)" }}
+          className="text-center mb-12"
         >
-          THE TEAMS
+          <div
+            className="text-5xl md:text-7xl font-bold text-yellow-400"
+            style={{ textShadow: "0 0 40px rgba(255,200,0,0.8)" }}
+          >
+            ROUND ROBIN
+          </div>
+          <div className="mt-4 text-2xl text-gray-300">
+            Fighting continues until only 2 fighters remain!
+          </div>
         </div>
 
-        {/* Teams Grid */}
+        {/* Captains Grid - Simple display of remaining fighters */}
         <div
           ref={teamsContainerRef}
-          className="grid grid-cols-1 md:grid-cols-2 gap-12 max-w-6xl"
+          className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-8 max-w-6xl"
         >
           {teams.map((team) => (
             <div
               key={team.captain._id}
-              className="flex flex-col items-center bg-gray-900/50 rounded-2xl p-8 border-4 border-yellow-500/30"
+              className="flex flex-col items-center bg-gray-900/50 rounded-2xl p-6 border-2 border-yellow-500/30"
             >
-              {/* Captain (larger) */}
-              <div className="relative">
-                <div className="absolute -top-4 -right-4 z-10 bg-yellow-400 text-black px-4 py-1 rounded-full font-bold text-sm">
-                  CAPTAIN
-                </div>
-                <AvatarFighter
-                  name={team.captain.name}
-                  avatar={team.captain.avatar}
-                  side="left"
-                  state="idle"
-                  size="large"
-                />
-              </div>
-              <div className="mt-4 text-3xl font-bold text-white">
+              {/* Captain */}
+              <AvatarFighter
+                name={team.captain.name}
+                avatar={team.captain.avatar}
+                side="left"
+                state="idle"
+                size="medium"
+              />
+              <div className="mt-4 text-2xl font-bold text-white text-center">
                 {team.captain.name}
               </div>
-              <div className="mt-2 text-xl text-green-400 font-bold">
+              <div className="mt-2 text-lg text-green-400 font-bold">
                 HP: {team.captain.hp}
               </div>
 
-              {/* Corner Men (smaller, side-by-side) */}
+              {/* Corner Men - compact display */}
               {team.cornerMen.length > 0 && (
-                <div className="mt-8 pt-8 border-t-2 border-gray-700 w-full">
-                  <div className="text-lg text-gray-400 mb-4 text-center">
-                    Corner {team.cornerMen.length === 1 ? "Man" : "Men"}
-                  </div>
-                  <div className="flex justify-center gap-6">
-                    {team.cornerMen.map((cornerMan) => (
-                      <div key={cornerMan._id} className="flex flex-col items-center opacity-75">
-                        <AvatarFighter
-                          name={cornerMan.name}
-                          avatar={cornerMan.avatar}
-                          side="left"
-                          state="idle"
-                          size="small"
-                        />
-                        <div className="mt-2 text-sm text-gray-300">
-                          {cornerMan.name}
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              )}
-
-              {/* No corner men indicator */}
-              {team.cornerMen.length === 0 && (
-                <div className="mt-8 pt-8 border-t-2 border-gray-700 w-full text-center text-gray-500 italic">
-                  Fighting Solo
+                <div className="mt-3 text-sm text-purple-300">
+                  Supported by {team.cornerMen.map(cm => cm.name).join(", ")}
                 </div>
               )}
             </div>
           ))}
-        </div>
-
-        {/* Subtitle */}
-        <div className="mt-12 text-2xl md:text-3xl text-gray-400 font-bold tracking-wider">
-          ENTERING THE GAUNTLET
         </div>
       </div>
     </div>
