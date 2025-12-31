@@ -216,7 +216,7 @@ export function BattleLayout({
           </div>
         </div>
 
-        {/* Message Overlay (K.O., FINISHER!, Combo, Tie, etc.) */}
+        {/* Message Overlay (K.O., FINISHER!, SPECIAL K.O.!, Combo, Tie, etc.) */}
         {tieMessage && (
           tieMessage === "K.O." ? (
             // BIG dramatic K.O. display
@@ -236,8 +236,8 @@ export function BattleLayout({
                 K.O.
               </div>
             </div>
-          ) : tieMessage === "FINISHER!" ? (
-            // DRAMATIC GOLDEN FINISHER display
+          ) : (tieMessage === "FINISHER!" || tieMessage === "SPECIAL K.O.!" || tieMessage === "3 WIN K.O.!") ? (
+            // DRAMATIC GOLDEN FINISHER/SPECIAL K.O. display
             <div
               className="absolute inset-0 flex items-center justify-center bg-black/70"
               style={{ zIndex: 50 }}
@@ -251,7 +251,7 @@ export function BattleLayout({
                   }}
                 />
                 <div
-                  className="text-[10rem] md:text-[14rem] font-black animate-pulse relative"
+                  className="text-[8rem] md:text-[12rem] font-black animate-pulse relative whitespace-nowrap"
                   style={{
                     color: "#FFD700", // Gold
                     textShadow: `
@@ -265,7 +265,7 @@ export function BattleLayout({
                     WebkitTextStroke: "3px #B8860B", // DarkGoldenrod stroke
                   }}
                 >
-                  FINISHER!
+                  {tieMessage}
                 </div>
               </div>
             </div>

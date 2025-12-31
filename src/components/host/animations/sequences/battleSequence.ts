@@ -1,6 +1,7 @@
 import type { AnimationSequence, AnimationContext } from "../core/types";
 import { animationRegistry } from "../core/AnimationRegistry";
 import { TIMINGS } from "../config";
+import { selectRandomVariant, ATTACK_VARIANTS } from "../core/variantSelector";
 
 /**
  * BATTLE_SEQUENCE - The complete battle animation flow
@@ -150,17 +151,20 @@ function selectAttackVariant(context: AnimationContext): boolean | string {
     const isComboKO = winnerStreak >= 2; // 3rd win (streak of 2 means 2 previous wins)
 
     if (isComboKO) {
+      const finisher = selectRandomVariant(ATTACK_VARIANTS.finisher);
       console.log(
-        `[selectAttackVariant] Combo KO! ${winner.name} with ${winnerStreak + 1}-win streak`
+        `[selectAttackVariant] FINISHER! ${winner.name} with ${winnerStreak + 1}-win streak → ${finisher}`
       );
-      return "attack-combo-ko";
+      return finisher;
     } else {
-      console.log(`[selectAttackVariant] KO! ${winner.name} KOs ${loser.name}`);
-      return "attack-ko";
+      const koAttack = selectRandomVariant(ATTACK_VARIANTS.ko);
+      console.log(`[selectAttackVariant] KO! ${winner.name} KOs ${loser.name} → ${koAttack}`);
+      return koAttack;
     }
   } else {
-    console.log(`[selectAttackVariant] Normal attack: ${winner.name} → ${loser.name} (${damage} damage)`);
-    return "attack-normal";
+    const normalAttack = selectRandomVariant(ATTACK_VARIANTS.normal);
+    console.log(`[selectAttackVariant] Normal attack: ${winner.name} → ${loser.name} (${damage} damage) → ${normalAttack}`);
+    return normalAttack;
   }
 }
 

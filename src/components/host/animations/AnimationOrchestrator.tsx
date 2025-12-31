@@ -9,10 +9,13 @@ import { AnimationSequencer } from "./core/AnimationSequencer";
 import { animationRegistry } from "./core/AnimationRegistry";
 import { useBattleState } from "../battle/useBattleState";
 import { BattleLayout } from "../battle/BattleLayout";
+import { gsap } from "./gsapConfig";
 
 // Import animation definitions so they self-register
 import "./definitions/battleEntry";
 import "./definitions/attacks";
+import "./definitions/attackVariants";
+import "./definitions/finishers";
 import "./definitions/battleReveal";
 import "./definitions/utilityAnimations";
 
@@ -159,32 +162,35 @@ export function AnimationOrchestrator({
       hasStartedRef.current = true; // Mark as started
       hasRevealedRef.current = false;
 
-      // Reset GSAP positions (important for clean start)
+      // Stop any running sequences first
+      sequencer.current.stop();
+
+      // Reset GSAP positions using gsap.set with clearProps to fully reset GSAP's internal state
+      // This is critical for preventing stale transforms between battles
       requestAnimationFrame(() => {
+        console.log("[AnimationOrchestrator] Resetting GSAP state for new battle");
+
+        // Clear ALL GSAP transforms and reset to initial positions
         if (refs.leftFighter.current) {
-          refs.leftFighter.current.style.transform = "";
+          gsap.set(refs.leftFighter.current, { clearProps: "all" });
         }
         if (refs.rightFighter.current) {
-          refs.rightFighter.current.style.transform = "";
+          gsap.set(refs.rightFighter.current, { clearProps: "all" });
         }
         if (refs.question.current) {
-          refs.question.current.style.transform = "";
-          refs.question.current.style.opacity = "0";
-          refs.question.current.style.visibility = "visible"; // Make visible for GSAP
+          gsap.set(refs.question.current, { clearProps: "all", opacity: 0, visibility: "visible" });
         }
         if (refs.answer1.current) {
-          refs.answer1.current.style.transform = "";
-          refs.answer1.current.style.opacity = "0";
-          refs.answer1.current.style.visibility = "visible"; // Make visible for GSAP
+          gsap.set(refs.answer1.current, { clearProps: "all", opacity: 0, visibility: "visible", x: 0, y: 0, scale: 1 });
         }
         if (refs.answer2.current) {
-          refs.answer2.current.style.transform = "";
-          refs.answer2.current.style.opacity = "0";
-          refs.answer2.current.style.visibility = "visible"; // Make visible for GSAP
+          gsap.set(refs.answer2.current, { clearProps: "all", opacity: 0, visibility: "visible", x: 0, y: 0, scale: 1 });
         }
         if (refs.vsBadge.current) {
-          refs.vsBadge.current.style.opacity = "1";
+          gsap.set(refs.vsBadge.current, { clearProps: "all", opacity: 1 });
         }
+
+        console.log("[AnimationOrchestrator] GSAP state reset complete");
 
         // Start sequence after DOM is ready
         const sequence = animationRegistry.getSequence("battle");
