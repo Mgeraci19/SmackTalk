@@ -228,10 +228,20 @@ export async function performTheCut(ctx: MutationCtx, gameId: Id<"games">): Prom
 export async function setupSemiFinals(ctx: MutationCtx, gameId: Id<"games">, semifinalists: Doc<"players">[]) {
     console.log(`[SEMI-FINALS] Setting up for ${semifinalists.length} fighters`);
 
-    if (semifinalists.length !== 4) {
-        console.error(`[SEMI-FINALS] Expected 4 semifinalists, got ${semifinalists.length}`);
-        // Take top 4 or fewer if not enough
-        semifinalists = semifinalists.slice(0, 4);
+    // Handle edge cases with fewer than 4 semifinalists
+    if (semifinalists.length < 2) {
+        console.error(`[SEMI-FINALS] Not enough fighters (${semifinalists.length}), cannot setup semi-finals`);
+        return;
+    }
+
+    if (semifinalists.length === 2) {
+        console.log(`[SEMI-FINALS] Only 2 fighters - they will face each other directly`);
+        // With only 2 fighters, create a single match
+    }
+
+    if (semifinalists.length === 3) {
+        console.log(`[SEMI-FINALS] Only 3 fighters - #1 seed gets a bye, #2 vs #3`);
+        // #1 seed advances automatically, #2 vs #3 fight for the other spot
     }
 
     const PROMPTS_PER_MATCH = 4; // 3 jabs + 1 haymaker
@@ -246,16 +256,28 @@ export async function setupSemiFinals(ctx: MutationCtx, gameId: Id<"games">, sem
         .withIndex("by_game", q => q.eq("gameId", gameId))
         .collect();
 
-    // Create 2 semi-final matches
-    // Match 1: #1 seed vs #4 seed
-    // Match 2: #2 seed vs #3 seed
-    const matches = [
-        { p1: semifinalists[0], p2: semifinalists[3] },
-        { p1: semifinalists[1], p2: semifinalists[2] }
-    ];
+    // Create matches based on number of semifinalists
+    const matches: Array<{ p1: Doc<"players">; p2: Doc<"players"> }> = [];
+
+    if (semifinalists.length >= 4) {
+        // Standard bracket: #1 vs #4, #2 vs #3
+        matches.push({ p1: semifinalists[0], p2: semifinalists[3] });
+        matches.push({ p1: semifinalists[1], p2: semifinalists[2] });
+    } else if (semifinalists.length === 3) {
+        // #1 gets bye, #2 vs #3
+        matches.push({ p1: semifinalists[1], p2: semifinalists[2] });
+    } else if (semifinalists.length === 2) {
+        // Direct matchup
+        matches.push({ p1: semifinalists[0], p2: semifinalists[1] });
+    }
 
     for (const match of matches) {
         const { p1, p2 } = match;
+
+        if (!p1 || !p2) {
+            console.error(`[SEMI-FINALS] Invalid match - missing player`);
+            continue;
+        }
 
         assertValidPairing(p1, p2);
 
