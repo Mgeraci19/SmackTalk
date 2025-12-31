@@ -389,11 +389,22 @@ export const attackTieAnimation: AnimationDefinition = {
 
   create: (context) => {
     // Use getter functions for CURRENT data (not stale captured values)
+    const leftBattler = context.getLeftBattler?.() ?? context.leftBattler;
+    const rightBattler = context.getRightBattler?.() ?? context.rightBattler;
     const leftDamage = context.getLeftDamage?.() ?? context.leftDamage;
     const rightDamage = context.getRightDamage?.() ?? context.rightDamage;
 
     const leftRef = context.refs.leftFighter;
     const rightRef = context.refs.rightFighter;
+
+    // Determine who submitted faster (gets the special bar charge)
+    const leftTime = leftBattler?.submissionTime ?? Infinity;
+    const rightTime = rightBattler?.submissionTime ?? Infinity;
+    const fasterPlayer = leftTime < rightTime ? leftBattler : rightBattler;
+    const fasterName = fasterPlayer?.name ?? "???";
+
+    console.log(`[attackTieAnimation] Speed comparison: ${leftBattler?.name}=${leftTime}, ${rightBattler?.name}=${rightTime}`);
+    console.log(`[attackTieAnimation] ${fasterName} was faster, gets special charge`);
 
     const timeline = gsap.timeline({
       onComplete: () => {
@@ -403,8 +414,8 @@ export const attackTieAnimation: AnimationDefinition = {
       },
     });
 
-    // Show TIE! message
-    context.setTieMessage?.("TIE!");
+    // Show TIE message with who gets the special charge
+    context.setTieMessage?.(`TIE! ${fasterName} CHARGES!`);
 
     // Set both to attacking state
     context.setFighterState?.("left", "attacking");

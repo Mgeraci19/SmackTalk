@@ -207,10 +207,10 @@ finalDamage = baseDamage × multiplier
 ### ✅ USER CHECKPOINT 1: Core Backend
 ```
 Verify in localhost:
-- [ ] Start a game with 8+ players
-- [ ] Main Round: Special bar fills with wins (visible in HP bar area)
-- [ ] Main Round: KO triggers at 3 wins (not HP death)
-- [ ] Main Round: Damage is reduced (~17 HP max per loss)
+- [ X ] Start a game with 8+ players
+- [ X ] Main Round: Special bar fills with wins (visible in HP bar area)
+- [ X ] Main Round: KO triggers at 3 wins (not HP death)
+- [ X] Main Round: Damage is reduced (~17 HP max per loss)
 - [ ] The Cut: Top 4 by HP advance to Semi-Finals
 - [ ] Semi-Finals: No HP damage, special bar only
 - [ ] Final: Both players reset to 200 HP
@@ -234,11 +234,11 @@ Verify in localhost:
 ### ✅ USER CHECKPOINT 2: Special Bar Display
 ```
 Verify in localhost:
-- [ ] Special bar shows 3 segments below fighter name
-- [ ] Segments fill orange/yellow when wins accumulate
-- [ ] Shows "READY!" when at 2 bars
-- [ ] Shows "KO!" when at 3 bars (Main Round/Semi-Finals)
-- [ ] Shows "FINISHER!" when at 3 bars (Final round)
+- [ X ] Special bar shows 3 segments below fighter name
+- [ X ] Segments fill orange/yellow when wins accumulate
+- [  ] Shows "READY!" when at 2 bars
+- [ X ] Shows "KO!" when at 3 bars (Main Round/Semi-Finals)
+- [  ] Shows "FINISHER!" when at 3 bars (Final round)
 ```
 
 ---

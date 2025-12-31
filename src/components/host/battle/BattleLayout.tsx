@@ -302,13 +302,13 @@ export function BattleLayout({
                 </div>
               </div>
             </div>
-          ) : tieMessage === "TIE!" ? (
-            // TIE display - orange/amber theme
+          ) : tieMessage?.startsWith("TIE!") ? (
+            // TIE display - orange/amber theme with dynamic message
             <div
               className="absolute inset-0 flex items-center justify-center bg-black/60"
               style={{ zIndex: 50 }}
             >
-              <div className="relative">
+              <div className="relative flex flex-col items-center">
                 {/* Glow effect behind text */}
                 <div
                   className="absolute inset-0 blur-xl"
@@ -317,7 +317,7 @@ export function BattleLayout({
                   }}
                 />
                 <div
-                  className="text-[10rem] md:text-[14rem] font-black animate-pulse relative"
+                  className="text-[8rem] md:text-[12rem] font-black animate-pulse relative"
                   style={{
                     color: "#FFA500", // Orange
                     textShadow: `
@@ -333,6 +333,18 @@ export function BattleLayout({
                 >
                   TIE!
                 </div>
+                {/* Show who gets the charge */}
+                {tieMessage.includes("CHARGES") && (
+                  <div
+                    className="text-3xl md:text-5xl font-bold mt-4 relative text-yellow-300 animate-pulse"
+                    style={{
+                      textShadow: "0 0 20px rgba(255,255,0,0.8)",
+                      fontFamily: "'Impact', 'Arial Black', sans-serif",
+                    }}
+                  >
+                    {tieMessage.replace("TIE! ", "")}
+                  </div>
+                )}
               </div>
             </div>
           ) : (

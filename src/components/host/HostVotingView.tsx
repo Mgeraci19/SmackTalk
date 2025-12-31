@@ -352,11 +352,28 @@ export function HostVotingView({ game, showWritingIndicator = false }: HostVotin
       {/* Status - Only show result after battle complete */}
       {battleComplete && (
         <div className="text-center py-2 flex-shrink-0">
+          {/* Bragging Round Message - Semi-Finals prompt 4 after KO */}
+          {game.braggingRoundMessage && (
+            <div className="text-2xl md:text-3xl font-bold mb-2"
+              style={{
+                color: game.braggingRoundMessage === "STOP_ALREADY_DEAD" ? "#ef4444" : "#a855f7",
+                textShadow: game.braggingRoundMessage === "STOP_ALREADY_DEAD"
+                  ? "0 0 20px rgba(239, 68, 68, 0.5)"
+                  : "0 0 20px rgba(168, 85, 247, 0.5)"
+              }}
+            >
+              {game.braggingRoundMessage === "STOP_ALREADY_DEAD"
+                ? "\"Stop! He's already dead!\""
+                : "\"How did you miss a guy knocked out on the floor?\""}
+            </div>
+          )}
           <div className="text-lg text-gray-500">
             {winner ? (
               winner.wonBySpeed
                 ? `${winner.player?.name} wins by SPEED!`
-                : `${winner.player?.name} wins this round!`
+                : game.braggingRoundMessage
+                  ? `${winner.player?.name} wins the BRAGGING ROUND!`
+                  : `${winner.player?.name} wins this round!`
             ) : "It's a tie!"}
           </div>
         </div>

@@ -263,16 +263,38 @@ async function handleMainRound(
  * - Special bar: +1.0 per win, triggers at 3.0 = instant KO
  * - NO HP damage (HP carries through unchanged)
  * - Bar does NOT reset on loss (cumulative)
+ * - Prompt 4 plays as "bragging round" after KO
  */
 async function handleSemiFinals(
     ctx: MutationCtx,
-    _gameId: Id<"games">,
+    gameId: Id<"games">,
     winner: { sub: Doc<"submissions">; votesFor: number; player: Doc<"players"> },
     loser: { sub: Doc<"submissions">; votesFor: number; player: Doc<"players"> },
     _submissions: Doc<"submissions">[]
 ) {
     const SPECIAL_BAR_PER_WIN = 1.0;
     const SPECIAL_BAR_TRIGGER = 3.0;
+
+    // Check if this is a BRAGGING ROUND (one player already KO'd)
+    const winnerAlreadyKOd = winner.player.knockedOut;
+    const loserAlreadyKOd = loser.player.knockedOut;
+
+    if (winnerAlreadyKOd || loserAlreadyKOd) {
+        // BRAGGING ROUND: Don't update any state, just determine message
+        if (loserAlreadyKOd) {
+            // KO'd player lost again: "Stop! He's already dead!"
+            console.log(`[BRAGGING ROUND] ${loser.player.name} (already KO'd) lost again - "Stop! He's already dead!"`);
+            await ctx.db.patch(gameId, { braggingRoundMessage: "STOP_ALREADY_DEAD" });
+        } else {
+            // KO'd player won: "How did you miss a guy knocked out on the floor?"
+            console.log(`[BRAGGING ROUND] ${winner.player.name} (already KO'd) won! - "How did you miss?"`);
+            await ctx.db.patch(gameId, { braggingRoundMessage: "HOW_DID_YOU_MISS" });
+        }
+        return;
+    }
+
+    // Normal Semi-Finals logic - clear any previous bragging round message
+    await ctx.db.patch(gameId, { braggingRoundMessage: undefined });
 
     // Update winner's special bar
     const winnerCurrentBar = winner.player.specialBar || 0;

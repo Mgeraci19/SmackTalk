@@ -19,6 +19,7 @@ export default defineSchema({
     round2ExecutedPlayerIds: v.optional(v.array(v.id("players"))), // Players executed at end of Round 2
     minPlayers: v.optional(v.number()), // Minimum players required (default 8)
     maxPlayers: v.optional(v.number()), // Maximum players allowed (default 12)
+    braggingRoundMessage: v.optional(v.string()), // "STOP_ALREADY_DEAD" | "HOW_DID_YOU_MISS" - Semi-Finals bragging round
   }).index("by_room_code", ["roomCode"]),
 
   players: defineTable({
