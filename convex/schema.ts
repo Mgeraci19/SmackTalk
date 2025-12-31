@@ -36,6 +36,7 @@ export default defineSchema({
     avatar: v.optional(v.string()), // Base64 PNG avatar image
     winStreak: v.optional(v.number()), // Track consecutive wins for combo bonuses
     lossStreak: v.optional(v.number()), // Track consecutive losses
+    combo: v.optional(v.number()), // Track consecutive votes received (resets on 0 votes or round end)
   }).index("by_game", ["gameId"]),
 
   // temporary for chat verification

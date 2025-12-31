@@ -263,10 +263,10 @@ export const attackComboKOAnimation: AnimationDefinition = {
     const arenaWidth = context.refs.arena.current?.clientWidth || 800;
     const offscreenDist = arenaWidth * 1.2;
 
-    console.log(`[FINISHER TRIGGERED!] ${winner?.name} with 3-win streak!`);
+    console.log(`[3 WIN KO TRIGGERED!] ${winner?.name} with 3-win streak!`);
 
-    // Show FINISHER message (will be styled golden in BattleLayout)
-    context.setTieMessage?.("FINISHER!");
+    // Show 3 WIN KO message (will be styled golden in BattleLayout)
+    context.setTieMessage?.("3 WIN K.O.!");
 
     // Set attacking state
     context.setFighterState?.(winnerIsLeft ? "left" : "right", "attacking");
@@ -301,7 +301,7 @@ export const attackComboKOAnimation: AnimationDefinition = {
     timeline.call(
       () => {
         const loserSide = winnerIsLeft ? "right" : "left";
-        console.log(`[FINISHER] Applying instant KO damage to ${loserSide}`);
+        console.log(`[3 WIN KO] Applying instant KO damage to ${loserSide}`);
         context.setFighterState?.(loserSide, "hurt");
         context.onDamageApplied?.(loserSide, damage);
       },
@@ -348,7 +348,7 @@ export const attackComboKOAnimation: AnimationDefinition = {
       const rightVotes = context.rightBattler?.voteCount || 0;
       winner = leftVotes > rightVotes ? context.leftBattler : context.rightBattler;
     }
-    console.log(`[FINISHER] ${winner?.name} lands the FINISHER!`);
+    console.log(`[3 WIN KO] ${winner?.name} lands the 3 WIN K.O.!`);
   },
 };
 

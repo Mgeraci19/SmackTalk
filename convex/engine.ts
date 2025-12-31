@@ -168,12 +168,14 @@ export const nextRound = mutation({
 
         await ctx.db.patch(args.gameId, { currentRound: targetRound });
 
-        // Reset all winStreaks at round boundaries
+        // Reset all winStreaks and combos at round boundaries
         const allPlayers = await ctx.db.query("players").withIndex("by_game", q => q.eq("gameId", args.gameId)).collect();
         for (const player of allPlayers) {
-            if (player.winStreak && player.winStreak > 0) {
-                console.log(`[ROUND RESET] Resetting ${player.name}'s winStreak from ${player.winStreak} to 0`);
-                await ctx.db.patch(player._id, { winStreak: 0 });
+            const hasStreak = player.winStreak && player.winStreak > 0;
+            const hasCombo = player.combo && player.combo > 0;
+            if (hasStreak || hasCombo) {
+                console.log(`[ROUND RESET] Resetting ${player.name}'s winStreak: ${player.winStreak || 0} → 0, combo: ${player.combo || 0} → 0`);
+                await ctx.db.patch(player._id, { winStreak: 0, combo: 0 });
             }
         }
 

@@ -12,11 +12,12 @@ interface FighterHealthBarProps {
     isWinner?: boolean;
     showDamage?: number; // Flash damage number when set
     avatar?: string; // Base64 avatar image
-    winStreak?: number; // Show combo indicator
+    winStreak?: number; // Show special bar indicator (3 wins = finisher)
+    combo?: number; // Vote combo counter (always visible)
 }
 
-export function FighterHealthBar({ name, hp, maxHp, side, isWinner, showDamage, avatar, winStreak }: FighterHealthBarProps) {
-    console.log(`[FIGHTER HP BAR] Render - ${name}, winStreak: ${winStreak}, shouldShowCombo: ${(winStreak ?? 0) >= 1}`);
+export function FighterHealthBar({ name, hp, maxHp, side, isWinner, showDamage, avatar, winStreak, combo }: FighterHealthBarProps) {
+    console.log(`[FIGHTER HP BAR] Render - ${name}, winStreak: ${winStreak}, combo: ${combo}`);
 
     const hpBarRef = useRef<HTMLDivElement>(null);
     const damageRef = useRef<HTMLDivElement>(null);
@@ -90,20 +91,41 @@ export function FighterHealthBar({ name, hp, maxHp, side, isWinner, showDamage, 
                 </div>
             </div>
 
-            {/* Combo Indicator - Separate row below name */}
-            {(winStreak ?? 0) >= 1 && (
-                <div className={`flex mb-2 ${side === "right" ? "justify-end" : "justify-start"}`}>
-                    <div className={`px-3 py-1 rounded-full font-bold text-sm ${
-                        winStreak && winStreak >= 2
-                            ? "bg-gradient-to-r from-yellow-500 to-orange-500 text-white animate-pulse"
-                            : "bg-blue-500 text-white"
-                    }`}>
-                        {winStreak && winStreak >= 2
-                            ? `🔥 ${winStreak + 1} WIN STREAK - INSTANT KO!`
-                            : `⚡ ${(winStreak ?? 0) + 1} WIN STREAK`}
-                    </div>
+            {/* Special Bar - 3 segments that fill with wins */}
+            <div className={`flex items-center gap-2 mb-2 ${side === "right" ? "flex-row-reverse" : ""}`}>
+                <div className="flex gap-1">
+                    {[0, 1, 2].map((segment) => (
+                        <div
+                            key={segment}
+                            className={`w-6 h-3 rounded-sm border transition-all duration-300 ${
+                                (winStreak ?? 0) > segment
+                                    ? "bg-gradient-to-r from-orange-500 to-yellow-400 border-yellow-500 shadow-[0_0_8px_rgba(255,165,0,0.6)]"
+                                    : "bg-gray-700 border-gray-600"
+                            }`}
+                        />
+                    ))}
                 </div>
-            )}
+                {(winStreak ?? 0) >= 2 && (
+                    <span className="text-xs font-bold text-yellow-400 animate-pulse">
+                        {winStreak === 2 ? "SPECIAL CHARGED!" : "🔥"}
+                    </span>
+                )}
+            </div>
+
+            {/* Combo Counter - Always visible above HP bar */}
+            <div className={`flex items-center gap-1 mb-1 ${side === "right" ? "justify-end" : "justify-start"}`}>
+                <span className="text-xs text-gray-400">COMBO</span>
+                <span className={`text-sm font-bold ${
+                    (combo ?? 0) > 0
+                        ? (combo ?? 0) >= 5 ? "text-purple-400" : "text-cyan-400"
+                        : "text-gray-500"
+                }`}>
+                    {combo ?? 0}
+                </span>
+                {(combo ?? 0) >= 3 && (
+                    <span className="text-xs text-cyan-400">+{Math.round(((combo ?? 0) / 8) * 15)}%</span>
+                )}
+            </div>
 
             {/* HP Bar Container */}
             <div className={`relative h-6 bg-gray-800 rounded ${side === "right" ? "ml-auto" : "mr-auto"}`} style={{ maxWidth: "300px" }}>

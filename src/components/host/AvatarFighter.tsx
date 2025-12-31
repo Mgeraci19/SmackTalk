@@ -169,12 +169,20 @@ export const AvatarFighter = forwardRef<HTMLDivElement, AvatarFighterProps>(
               src={avatar}
               alt={`${name}'s avatar`}
               className="w-full h-full object-cover"
+              onError={(e) => {
+                // Hide broken image and show fallback
+                e.currentTarget.style.display = 'none';
+                const fallback = e.currentTarget.nextElementSibling;
+                if (fallback) (fallback as HTMLElement).style.display = 'flex';
+              }}
             />
-          ) : (
-            <div className="w-full h-full flex items-center justify-center text-6xl text-gray-500">
-              ?
-            </div>
-          )}
+          ) : null}
+          <div
+            className="w-full h-full flex items-center justify-center text-6xl text-gray-500 absolute inset-0"
+            style={{ display: avatar ? 'none' : 'flex' }}
+          >
+            ?
+          </div>
 
           {/* KO Indicator */}
           {isKO && (

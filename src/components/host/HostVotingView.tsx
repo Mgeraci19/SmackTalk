@@ -358,6 +358,7 @@ export function HostVotingView({ game, showWritingIndicator = false }: HostVotin
               avatar={leftBattler.player.avatar}
               showDamage={leftShowDamage}
               winStreak={leftBattler.player.winStreak}
+              combo={leftBattler.player.combo}
             />
           )}
         </div>
@@ -379,6 +380,7 @@ export function HostVotingView({ game, showWritingIndicator = false }: HostVotin
               avatar={rightBattler.player.avatar}
               showDamage={rightShowDamage}
               winStreak={rightBattler.player.winStreak}
+              combo={rightBattler.player.combo}
             />
           )}
         </div>

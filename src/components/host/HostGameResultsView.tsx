@@ -138,7 +138,7 @@ export function HostGameResultsView({ game }: HostGameResultsViewProps) {
                         />
                     </div>
                     <div
-                        className="mt-6 text-5xl md:text-6xl font-bold text-white"
+                        className="mt-6 text-5xl md:text-6xl font-bold text-white max-w-full px-4 break-words text-center"
                         style={{ textShadow: "0 0 20px rgba(255,255,255,0.5)" }}
                     >
                         {winner.name}
