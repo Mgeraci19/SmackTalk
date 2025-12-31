@@ -302,6 +302,39 @@ export function BattleLayout({
                 </div>
               </div>
             </div>
+          ) : tieMessage === "TIE!" ? (
+            // TIE display - orange/amber theme
+            <div
+              className="absolute inset-0 flex items-center justify-center bg-black/60"
+              style={{ zIndex: 50 }}
+            >
+              <div className="relative">
+                {/* Glow effect behind text */}
+                <div
+                  className="absolute inset-0 blur-xl"
+                  style={{
+                    background: "radial-gradient(ellipse at center, rgba(255,165,0,0.6) 0%, rgba(255,140,0,0.3) 50%, transparent 70%)",
+                  }}
+                />
+                <div
+                  className="text-[10rem] md:text-[14rem] font-black animate-pulse relative"
+                  style={{
+                    color: "#FFA500", // Orange
+                    textShadow: `
+                      0 0 40px rgba(255,165,0,1),
+                      0 0 80px rgba(255,140,0,0.8),
+                      0 0 120px rgba(255,100,0,0.6),
+                      0 0 200px rgba(255,69,0,0.4)
+                    `,
+                    fontFamily: "'Impact', 'Arial Black', sans-serif",
+                    letterSpacing: "0.1em",
+                    WebkitTextStroke: "4px #CC5500",
+                  }}
+                >
+                  TIE!
+                </div>
+              </div>
+            </div>
           ) : (
             // Regular message (combo, tie, etc.)
             <div

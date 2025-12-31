@@ -1,6 +1,6 @@
 import { mutation } from "./_generated/server";
 import { v } from "convex/values";
-import { BOT_WORDS } from "./lib/constants";
+import { BOT_WORDS, getBotDelay, isBotOnlyBattle } from "./lib/constants";
 import { hasHumanCornerMan } from "./lib/phases";
 
 export const autoAnswer = mutation({
@@ -72,9 +72,13 @@ export const autoAnswer = mutation({
                 roundStatus: "VOTING"
             });
 
+            // Check if first prompt is bot-only for instant simulation
+            const allPlayersForCheck = await ctx.db.query("players").withIndex("by_game", q => q.eq("gameId", args.gameId)).collect();
+            const firstPromptBotOnly = isBotOnlyBattle(allPrompts[0].assignedTo, allPlayersForCheck);
+
             // Trigger Bot Votes for the first prompt (Scheduled)
-            // We can schedule it here with a delay too!
-            const delay = 200 + Math.random() * 300;
+            const delay = getBotDelay("VOTE", firstPromptBotOnly);
+            console.log(`[BOTS] Scheduling votes with delay ${delay}ms (botOnly: ${firstPromptBotOnly})`);
             await ctx.scheduler.runAfter(delay, api.bots.castVotes, {
                 gameId: args.gameId,
                 promptId: allPrompts[0]._id

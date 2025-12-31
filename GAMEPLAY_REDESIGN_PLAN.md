@@ -159,6 +159,14 @@ finalDamage = baseDamage × multiplier
 
 ---
 
+# Important UNADRESSED USER NOTES
+> If you are taking on a fix for one of these be sure to update it here when done
+- Round 2 is busted. It does not do the 2 jab 1 haymaker functionality that is described in the plan. It needs to be fully fixed
+- Ties are broken on the UI there is no indication that speed wins on ties
+- There are still hanging rounds in. There should only be 3 rounds that are described above but I still sometimes get put in a round robin
+- The old transitions are still present. If you come across one that does not match this plan just mark it as deprecated as say what should be there in the UI so I can fix it later 
+
+
 ## Phase 1: Core Mechanics & Schema ✅ COMPLETE
 
 **Files modified:**

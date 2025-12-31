@@ -1,6 +1,6 @@
 import { mutation } from "./_generated/server";
 import { v } from "convex/values";
-import { setupPhase1 } from "./lib/phases";
+import { setupMainRound } from "./lib/phases";
 import { api } from "./_generated/api";
 import { generateSessionToken, validatePlayerName, validateVipPlayer } from "./lib/auth";
 import { MutationCtx } from "./_generated/server";
@@ -53,7 +53,7 @@ export const create = mutation({
             roomCode,
             status: "LOBBY",
             currentRound: 1,
-            maxRounds: 4,
+            maxRounds: 3,
             hostToken,
         });
         return { gameId, roomCode, hostToken };
@@ -123,7 +123,7 @@ export const startGame = mutation({
 
         // Bot Filling Logic
         const currentCount = players.length;
-        const MIN_PLAYERS = 6;
+        const MIN_PLAYERS = 8;
         let targetCount = Math.max(currentCount, MIN_PLAYERS);
         if (targetCount % 2 !== 0) targetCount++;
 
@@ -167,8 +167,8 @@ export const startGame = mutation({
         // Refetch players including bots
         const allPlayers = await ctx.db.query("players").withIndex("by_game", q => q.eq("gameId", args.gameId)).collect();
 
-        // Start Phase 1
-        await setupPhase1(ctx, args.gameId, allPlayers);
+        // Start Main Round (Round 1)
+        await setupMainRound(ctx, args.gameId, allPlayers);
 
         await ctx.db.patch(args.gameId, {
             status: "PROMPTS",

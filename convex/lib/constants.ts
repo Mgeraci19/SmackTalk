@@ -63,3 +63,49 @@ export const PROMPTS = [
 ];
 
 export const BOT_WORDS = ["Potato", "Sledgehammer", "Glitter", "Taxes", "Spaghetti", "Nuke", "Unicorn", "Moist", "Crusty", "Bazinga"];
+
+/**
+ * Development mode flag.
+ * When true, bot-only battles are simulated instantly (no delays).
+ * Set to false for production or when you want to see bot animations.
+ */
+export const IS_DEV_MODE = true;
+
+/**
+ * Delay configuration for bot actions.
+ * In dev mode with bot-only battles, we use minimal delays.
+ */
+export const BOT_DELAYS = {
+    /** Delay before bots answer (ms) */
+    ANSWER: { normal: 1500, instant: 10 },
+    /** Delay before bots vote (ms) */
+    VOTE: { normal: 500, instant: 10 },
+    /** Delay before bots send suggestions (ms) */
+    SUGGESTION: { normal: 750, instant: 10 }
+};
+
+/**
+ * Get the appropriate delay for bot actions based on whether it's a bot-only battle.
+ */
+export function getBotDelay(type: keyof typeof BOT_DELAYS, isBotOnlyBattle: boolean): number {
+    if (IS_DEV_MODE && isBotOnlyBattle) {
+        return BOT_DELAYS[type].instant;
+    }
+    return BOT_DELAYS[type].normal + Math.random() * BOT_DELAYS[type].normal * 0.5;
+}
+
+/**
+ * Check if a battle (prompt) involves only bots (no human players).
+ * @param assignedTo Array of player IDs assigned to the prompt
+ * @param players Array of all players in the game
+ * @returns true if all assigned players are bots
+ */
+export function isBotOnlyBattle(
+    assignedTo: string[] | undefined,
+    players: Array<{ _id: string; isBot?: boolean }>
+): boolean {
+    if (!assignedTo || assignedTo.length === 0) return false;
+
+    const assignedPlayers = players.filter(p => assignedTo.includes(p._id));
+    return assignedPlayers.length > 0 && assignedPlayers.every(p => p.isBot === true);
+}

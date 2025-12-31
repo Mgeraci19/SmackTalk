@@ -362,7 +362,7 @@ export function HostVotingView({ game, showWritingIndicator = false }: HostVotin
         </div>
       )}
 
-      {/* Round 4 Writing Indicator - Shows during PROMPTS phase in Round 4 */}
+      {/* Final Round Writing Indicator - Shows during PROMPTS phase in Final */}
       {showWritingIndicator && (
         <div className="absolute inset-0 flex items-center justify-center pointer-events-none z-40">
           <div className="bg-black/80 px-12 py-8 rounded-2xl border-2 border-yellow-400">
@@ -370,7 +370,7 @@ export function HostVotingView({ game, showWritingIndicator = false }: HostVotin
               Players Writing Answers...
             </div>
             <div className="text-xl text-gray-300 text-center">
-              Sudden Death continues when answers are submitted
+              Final battle continues when answers are submitted
             </div>
           </div>
         </div>

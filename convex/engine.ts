@@ -10,6 +10,7 @@ import {
 import { resolveBattle } from "./lib/gameLogic";
 import { api } from "./_generated/api";
 import { validateVipPlayer } from "./lib/auth";
+import { getBotDelay, isBotOnlyBattle } from "./lib/constants";
 
 /**
  * NEW GAME FLOW (3 Rounds):
@@ -124,8 +125,11 @@ export const nextBattle = mutation({
                 currentPromptId: nextPromptId,
                 roundStatus: "VOTING"
             });
-            // Bot voting
-            const delay = 300 + Math.random() * 400;
+            // Bot voting - check if it's a bot-only battle for instant simulation
+            const nextPrompt = allPrompts.find(p => p._id === nextPromptId);
+            const botOnlyBattle = isBotOnlyBattle(nextPrompt?.assignedTo, currentPlayers);
+            const delay = getBotDelay("VOTE", botOnlyBattle);
+            console.log(`[NEXT BATTLE] Scheduling bot votes with delay ${delay}ms (botOnly: ${botOnlyBattle})`);
             await ctx.scheduler.runAfter(delay, api.bots.castVotes, { gameId: args.gameId, promptId: nextPromptId });
         } else {
             // No more prompts in this round
@@ -267,7 +271,10 @@ export const nextRound = mutation({
                 currentPromptId: allPrompts[0]._id,
                 roundStatus: "VOTING"
             });
-            const delay = 300 + Math.random() * 400;
+            // Check if first prompt is bot-only for instant simulation
+            const firstPromptBotOnly = isBotOnlyBattle(allPrompts[0].assignedTo, players);
+            const delay = getBotDelay("VOTE", firstPromptBotOnly);
+            console.log(`[GAME] Scheduling bot votes with delay ${delay}ms (botOnly: ${firstPromptBotOnly})`);
             await ctx.scheduler.runAfter(delay, api.bots.castVotes, { gameId: args.gameId, promptId: allPrompts[0]._id });
         } else {
             console.log(`[GAME] Round ${targetRound} Starting: Waiting for answers.`);
@@ -277,8 +284,8 @@ export const nextRound = mutation({
                 roundStatus: undefined
             });
 
-            // Schedule bots to send suggestions
-            const suggestionDelay = 500 + Math.random() * 500;
+            // Schedule bots to send suggestions (use normal delay for suggestions)
+            const suggestionDelay = getBotDelay("SUGGESTION", false);
             await ctx.scheduler.runAfter(suggestionDelay, api.bots.sendSuggestions, { gameId: args.gameId });
         }
     }
@@ -369,7 +376,11 @@ export const hostTriggerNextBattle = mutation({
                 currentPromptId: nextPromptId,
                 roundStatus: "VOTING"
             });
-            const delay = 300 + Math.random() * 400;
+            // Check if next prompt is bot-only for instant simulation
+            const nextPrompt = allPrompts.find(p => p._id === nextPromptId);
+            const botOnlyBattle = isBotOnlyBattle(nextPrompt?.assignedTo, currentPlayers);
+            const delay = getBotDelay("VOTE", botOnlyBattle);
+            console.log(`[HOST AUTO-ADVANCE] Scheduling bot votes with delay ${delay}ms (botOnly: ${botOnlyBattle})`);
             await ctx.scheduler.runAfter(delay, api.bots.castVotes, { gameId: args.gameId, promptId: nextPromptId });
         } else {
             if (game.currentRound === 3) {
@@ -488,7 +499,10 @@ export const hostTriggerNextRound = mutation({
                 currentPromptId: allPrompts[0]._id,
                 roundStatus: "VOTING"
             });
-            const delay = 300 + Math.random() * 400;
+            // Check if first prompt is bot-only for instant simulation
+            const firstPromptBotOnly = isBotOnlyBattle(allPrompts[0].assignedTo, players);
+            const delay = getBotDelay("VOTE", firstPromptBotOnly);
+            console.log(`[HOST NEXT ROUND] Scheduling bot votes with delay ${delay}ms (botOnly: ${firstPromptBotOnly})`);
             await ctx.scheduler.runAfter(delay, api.bots.castVotes, { gameId: args.gameId, promptId: allPrompts[0]._id });
         } else {
             await ctx.db.patch(args.gameId, {
@@ -497,7 +511,8 @@ export const hostTriggerNextRound = mutation({
                 roundStatus: undefined
             });
 
-            const suggestionDelay = 500 + Math.random() * 500;
+            // Schedule bots to send suggestions (use normal delay for suggestions)
+            const suggestionDelay = getBotDelay("SUGGESTION", false);
             await ctx.scheduler.runAfter(suggestionDelay, api.bots.sendSuggestions, { gameId: args.gameId });
         }
     }

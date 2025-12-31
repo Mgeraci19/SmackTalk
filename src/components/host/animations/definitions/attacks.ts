@@ -397,10 +397,14 @@ export const attackTieAnimation: AnimationDefinition = {
 
     const timeline = gsap.timeline({
       onComplete: () => {
+        context.setTieMessage?.(null); // Clear tie message
         context.setPhase?.("complete");
         context.onComplete?.();
       },
     });
+
+    // Show TIE! message
+    context.setTieMessage?.("TIE!");
 
     // Set both to attacking state
     context.setFighterState?.("left", "attacking");

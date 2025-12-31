@@ -100,11 +100,14 @@ function selectAttackVariant(context: AnimationContext): boolean | string {
 
   console.log(`[selectAttackVariant] Left: ${leftBattler.name} (${leftBattler.voteCount} votes, isWinner: ${leftBattler.isWinner}), Right: ${rightBattler.name} (${rightBattler.voteCount} votes, isWinner: ${rightBattler.isWinner})`);
 
-  // Determine if there's a winner or a tie using vote counts as source of truth
-  const isTie = leftBattler.voteCount === rightBattler.voteCount;
+  // Determine if there's a winner or a tie
+  // True tie = equal votes AND neither battler is winner (no speed tiebreaker)
+  const votesEqual = leftBattler.voteCount === rightBattler.voteCount;
+  const hasWinner = leftBattler.isWinner || rightBattler.isWinner;
+  const isTie = votesEqual && !hasWinner;
 
   if (isTie) {
-    console.log("[selectAttackVariant] TIE (equal votes) - using tie attack animation");
+    console.log("[selectAttackVariant] TIE (equal votes, no winner) - using tie attack animation");
     return "attack-tie";
   }
 

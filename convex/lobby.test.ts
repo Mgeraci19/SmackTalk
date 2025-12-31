@@ -20,7 +20,7 @@ describe("lobby.create", () => {
     expect(game).not.toBeNull();
     expect(game?.status).toBe("LOBBY");
     expect(game?.currentRound).toBe(1);
-    expect(game?.maxRounds).toBe(4);
+    expect(game?.maxRounds).toBe(3);
   });
 
   test("generates uppercase room codes", async () => {
@@ -220,7 +220,7 @@ describe("lobby.startGame", () => {
       sessionToken,
     });
 
-    // Check that bots were added (minimum 6 players)
+    // Check that bots were added (minimum 8 players)
     const players = await t.run(async (ctx) => {
       return await ctx.db
         .query("players")
@@ -228,11 +228,11 @@ describe("lobby.startGame", () => {
         .collect();
     });
 
-    expect(players.length).toBeGreaterThanOrEqual(6);
+    expect(players.length).toBeGreaterThanOrEqual(8);
     expect(players.length % 2).toBe(0); // Must be even
 
     const bots = players.filter((p) => p.isBot);
-    expect(bots.length).toBeGreaterThanOrEqual(5);
+    expect(bots.length).toBeGreaterThanOrEqual(7);
   });
 
   test("non-VIP cannot start game", async () => {

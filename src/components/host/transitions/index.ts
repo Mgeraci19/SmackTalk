@@ -50,18 +50,18 @@ transitionRegistry.register({
 });
 
 /**
- * Register the sudden death intro transition
- * Triggers when entering Round 4 (higher priority than generic round start)
+ * Register the Final intro transition (formerly sudden death)
+ * Triggers when entering Round 3 (Final) from Semi-Finals
  */
 transitionRegistry.register({
-  id: "sudden-death-intro",
-  name: "Sudden Death Intro",
+  id: "final-intro",
+  name: "Final Showdown Intro",
   trigger: (prevState, currentState) => {
-    // Only trigger when transitioning TO round 4 (not initial load)
+    // Only trigger when transitioning TO Round 3 (Final)
     return (
       prevState !== null &&
-      prevState.currentRound === 3 &&
-      currentState.currentRound === 4
+      prevState.currentRound === 2 &&
+      currentState.currentRound === 3
     );
   },
   priority: 20, // Higher priority than generic round start
@@ -69,35 +69,13 @@ transitionRegistry.register({
 });
 
 /**
- * Register the round robin reveal transition
- * Triggers when entering Round 3 - shows remaining captains
- */
-transitionRegistry.register({
-  id: "round-robin-reveal",
-  name: "Round Robin Reveal",
-  trigger: (prevState, currentState) => {
-    // Only trigger when transitioning TO round 3 (not initial load)
-    return (
-      prevState !== null &&
-      prevState.currentRound === 2 &&
-      currentState.currentRound === 3
-    );
-  },
-  priority: 16, // High priority for round 3 transition
-  component: CornerMenReveal,
-});
-
-/**
- * Register the round start transition (generic, for rounds 1-3)
+ * Register the round start transition (generic)
  * Triggers when currentRound changes OR when game starts (LOBBY → PROMPTS)
  */
 transitionRegistry.register({
   id: "round-start",
   name: "Round Start",
   trigger: (prevState, currentState) => {
-    // Round 4 uses sudden death intro
-    if (currentState.currentRound === 4) return false;
-
     // Trigger on round changes
     if (prevState !== null && prevState.currentRound !== currentState.currentRound) {
       return true;

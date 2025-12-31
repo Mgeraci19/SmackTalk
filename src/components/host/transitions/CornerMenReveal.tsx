@@ -6,10 +6,13 @@ import { AvatarFighter } from "../AvatarFighter";
 import { TransitionProps } from "./types";
 
 /**
- * RoundRobinReveal - Shows remaining captains entering Round 3 (Round Robin)
+ * CornerMenReveal - Shows remaining captains and their corner men
  *
- * Displays all surviving fighters ready for the round robin phase,
- * where fighting continues until only 2 remain.
+ * @deprecated This component is no longer used in the current game flow.
+ * The new 3-round structure (Main Round → Semi-Finals → Final) uses
+ * TheCutReveal and SuddenDeathIntro transitions instead.
+ *
+ * This component is kept for potential future use or as a reference.
  */
 export function CornerMenReveal({ gameState, onComplete }: TransitionProps) {
   const overlayRef = useRef<HTMLDivElement>(null);
@@ -132,10 +135,10 @@ export function CornerMenReveal({ gameState, onComplete }: TransitionProps) {
             className="text-5xl md:text-7xl font-bold text-yellow-400"
             style={{ textShadow: "0 0 40px rgba(255,200,0,0.8)" }}
           >
-            ROUND ROBIN
+            FIGHTERS
           </div>
           <div className="mt-4 text-2xl text-gray-300">
-            Fighting continues until only 2 fighters remain!
+            Remaining fighters and their corner men
           </div>
         </div>
 

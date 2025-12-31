@@ -8,6 +8,7 @@ import {
     MAX_ANSWER_LENGTH,
     MAX_SUGGESTION_LENGTH
 } from "./lib/auth";
+import { getBotDelay, isBotOnlyBattle } from "./lib/constants";
 
 export const sendMessage = mutation({
     args: {
@@ -97,8 +98,8 @@ export const submitAnswer = mutation({
 
         // MVP Check: Total Submissions >= Prompts * 2
         const allPrompts = await ctx.db.query("prompts").withIndex("by_game", q => q.eq("gameId", args.gameId)).collect();
-        // Assuming 2 players per prompt. 
-        // Note: For Round 4, we only generate 1 prompt at a time, so prompts.length * 2 is correct (1 prompt * 2 players = 2 subs).
+        // Assuming 2 players per prompt.
+        // Note: For Final round, we only generate 1 prompt at a time, so prompts.length * 2 is correct (1 prompt * 2 players = 2 subs).
         const totalExpected = allPrompts.length * 2;
 
         let totalReceived = 0;
@@ -120,10 +121,10 @@ export const submitAnswer = mutation({
 
             console.log(`[GAME] All answers received! Moving to VOTING.`);
 
-            // For Round 4 (Sudden Death), we want the LATEST prompt (newest one created)
+            // For Final round, we want the LATEST prompt (newest one created)
             // For other rounds, first prompt is fine
-            const startPromptId = currentGame?.currentRound === 4
-                ? allPrompts[allPrompts.length - 1]._id  // Latest prompt in Round 4
+            const startPromptId = currentGame?.currentRound === 3
+                ? allPrompts[allPrompts.length - 1]._id  // Latest prompt in Final
                 : allPrompts[0]._id;                      // First prompt otherwise
 
             await ctx.db.patch(args.gameId, {
@@ -132,8 +133,12 @@ export const submitAnswer = mutation({
                 roundStatus: "VOTING",
                 isTransitioning: false  // Clear flag after transition
             });
-            // BOTS VOTE
-            const delay = 300 + Math.random() * 400;
+            // BOTS VOTE - check if bot-only for instant simulation
+            const allPlayersForCheck = await ctx.db.query("players").withIndex("by_game", q => q.eq("gameId", args.gameId)).collect();
+            const startPrompt = allPrompts.find(p => p._id === startPromptId);
+            const botOnlyBattle = isBotOnlyBattle(startPrompt?.assignedTo, allPlayersForCheck);
+            const delay = getBotDelay("VOTE", botOnlyBattle);
+            console.log(`[SUBMIT ANSWER] Scheduling bot votes with delay ${delay}ms (botOnly: ${botOnlyBattle})`);
             await ctx.scheduler.runAfter(delay, api.bots.castVotes, { gameId: args.gameId, promptId: startPromptId });
         }
     }
@@ -376,7 +381,7 @@ export const submitAnswerForBot = mutation({
 
             console.log(`[GAME] All answers received! Moving to VOTING.`);
 
-            const startPromptId = currentGame?.currentRound === 4
+            const startPromptId = currentGame?.currentRound === 3
                 ? allPrompts[allPrompts.length - 1]._id
                 : allPrompts[0]._id;
 
@@ -387,7 +392,12 @@ export const submitAnswerForBot = mutation({
                 isTransitioning: false  // Clear flag after transition
             });
 
-            const delay = 300 + Math.random() * 400;
+            // BOTS VOTE - check if bot-only for instant simulation
+            const allPlayersForCheck = await ctx.db.query("players").withIndex("by_game", q => q.eq("gameId", args.gameId)).collect();
+            const startPrompt = allPrompts.find(p => p._id === startPromptId);
+            const botOnlyBattle = isBotOnlyBattle(startPrompt?.assignedTo, allPlayersForCheck);
+            const delay = getBotDelay("VOTE", botOnlyBattle);
+            console.log(`[SUBMIT ANSWER FOR BOT] Scheduling bot votes with delay ${delay}ms (botOnly: ${botOnlyBattle})`);
             await ctx.scheduler.runAfter(delay, api.bots.castVotes, { gameId: args.gameId, promptId: startPromptId });
         }
     }

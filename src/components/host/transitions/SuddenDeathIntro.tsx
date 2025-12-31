@@ -7,7 +7,7 @@ import { AvatarFighter } from "../AvatarFighter";
 import { TransitionProps } from "./types";
 
 /**
- * SuddenDeathIntro - Dramatic face-off animation for Round 4
+ * SuddenDeathIntro - Dramatic face-off animation for Final (Round 3)
  *
  * Shows the final two fighters in a Mortal Kombat-style VS screen
  * with split-screen avatars, dramatic lighting, and HP reset animation.
@@ -37,7 +37,7 @@ export function SuddenDeathIntro({ gameState, onComplete }: TransitionProps) {
     });
   }, []);
 
-  // Get the two finalists (fighters with role "FIGHTER" in Round 4)
+  // Get the two finalists (fighters with role "FIGHTER" in Final round)
   const finalists = gameState.players
     ?.filter((p) => p.role === "FIGHTER" && !p.knockedOut)
     .sort((a, b) => (b.hp ?? 0) - (a.hp ?? 0))
@@ -162,7 +162,7 @@ export function SuddenDeathIntro({ gameState, onComplete }: TransitionProps) {
               {leftFighter.name}
             </div>
             <div className="mt-2 text-xl md:text-2xl text-green-400 font-bold">
-              HP: {leftFighter.hp} → 100
+              HP: {leftFighter.hp} → 200
             </div>
           </div>
 
@@ -179,7 +179,7 @@ export function SuddenDeathIntro({ gameState, onComplete }: TransitionProps) {
               {rightFighter.name}
             </div>
             <div className="mt-2 text-xl md:text-2xl text-green-400 font-bold">
-              HP: {rightFighter.hp} → 100
+              HP: {rightFighter.hp} → 200
             </div>
           </div>
         </div>
