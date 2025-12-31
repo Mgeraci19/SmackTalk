@@ -37,7 +37,13 @@ export const submitAnswer = mutation({
         playerId: v.id("players"),
         sessionToken: v.string(),
         promptId: v.id("prompts"),
-        text: v.string()
+        text: v.string(),
+        // Attack type for Final round (jab = 1x, haymaker = 2x, flyingKick = 3x dealt/4x received)
+        attackType: v.optional(v.union(
+            v.literal("jab"),
+            v.literal("haymaker"),
+            v.literal("flyingKick")
+        ))
     },
     handler: async (ctx, args) => {
         // Validate player session
@@ -79,11 +85,14 @@ export const submitAnswer = mutation({
         // Validate input
         const validatedText = validateTextInput(args.text, MAX_ANSWER_LENGTH, "Answer");
 
-        console.log(`[GAME] Player ${args.playerId} submitted answer for ${args.promptId}`);
+        console.log(`[GAME] Player ${args.playerId} submitted answer for ${args.promptId}${args.attackType ? ` (${args.attackType})` : ''}`);
         await ctx.db.insert("submissions", {
             promptId: args.promptId,
             playerId: args.playerId,
             text: validatedText,
+            submittedAt: Date.now(),
+            // Only include attackType in Final round (Round 3)
+            ...(args.attackType && game.currentRound === 3 && { attackType: args.attackType })
         });
 
         // MVP Check: Total Submissions >= Prompts * 2
@@ -275,7 +284,13 @@ export const submitAnswerForBot = mutation({
         playerId: v.id("players"),  // The corner man's ID (for auth)
         sessionToken: v.string(),
         promptId: v.id("prompts"),
-        text: v.string()
+        text: v.string(),
+        // Attack type for Final round (jab = 1x, haymaker = 2x, flyingKick = 3x dealt/4x received)
+        attackType: v.optional(v.union(
+            v.literal("jab"),
+            v.literal("haymaker"),
+            v.literal("flyingKick")
+        ))
     },
     handler: async (ctx, args) => {
         // Validate corner man's session
@@ -325,13 +340,16 @@ export const submitAnswerForBot = mutation({
             throw new Error("Bot has already submitted for this prompt");
         }
 
-        console.log(`[GAME] Corner man ${cornerMan.name} submitted answer for bot ${captain.name} on prompt ${args.promptId}`);
+        console.log(`[GAME] Corner man ${cornerMan.name} submitted answer for bot ${captain.name} on prompt ${args.promptId}${args.attackType ? ` (${args.attackType})` : ''}`);
 
         // Submit as the BOT, not the corner man
         await ctx.db.insert("submissions", {
             promptId: args.promptId,
             playerId: cornerMan.teamId,  // Use the BOT's ID
             text: validatedText,
+            submittedAt: Date.now(),
+            // Only include attackType in Final round (Round 3)
+            ...(args.attackType && game.currentRound === 3 && { attackType: args.attackType })
         });
 
         // Check if all submissions are in (same logic as submitAnswer)

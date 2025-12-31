@@ -6,7 +6,7 @@ export default defineSchema({
     roomCode: v.string(),
     status: v.string(), // "LOBBY" | "PROMPTS" | "VOTING" | "ROUND_RESULTS" | "RESULTS"
     currentRound: v.number(),
-    maxRounds: v.optional(v.number()),
+    maxRounds: v.optional(v.number()), // Default 3 (Main Round, Semi-Finals, Final)
     currentPromptId: v.optional(v.id("prompts")),
     roundStatus: v.optional(v.string()), // "VOTING" | "REVEAL"
     usedPromptIndices: v.optional(v.array(v.number())), // Track used prompt indices
@@ -17,6 +17,8 @@ export default defineSchema({
       fighter2Id: v.id("players"),
     }))), // Snapshot of Round 2 pairings for transition display
     round2ExecutedPlayerIds: v.optional(v.array(v.id("players"))), // Players executed at end of Round 2
+    minPlayers: v.optional(v.number()), // Minimum players required (default 8)
+    maxPlayers: v.optional(v.number()), // Maximum players allowed (default 12)
   }).index("by_room_code", ["roomCode"]),
 
   players: defineTable({
@@ -37,6 +39,7 @@ export default defineSchema({
     winStreak: v.optional(v.number()), // Track consecutive wins for combo bonuses
     lossStreak: v.optional(v.number()), // Track consecutive losses
     combo: v.optional(v.number()), // Track consecutive votes received (resets on 0 votes or round end)
+    specialBar: v.optional(v.number()), // Special attack meter (0-3.0, triggers at 3.0)
   }).index("by_game", ["gameId"]),
 
   // temporary for chat verification
@@ -57,6 +60,14 @@ export default defineSchema({
     promptId: v.id("prompts"),
     playerId: v.id("players"),
     text: v.string(),
+    // Attack type for Final round (jab = 1x, haymaker = 2x, flyingKick = 3x dealt/4x received)
+    attackType: v.optional(v.union(
+      v.literal("jab"),
+      v.literal("haymaker"),
+      v.literal("flyingKick")
+    )),
+    submittedAt: v.optional(v.number()), // Timestamp for speed tiebreaker
+    wonBySpeed: v.optional(v.boolean()), // True if this submission won via speed tiebreaker
   })
     .index("by_prompt", ["promptId"])
     .index("by_prompt_player", ["promptId", "playerId"]),

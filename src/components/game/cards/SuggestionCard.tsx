@@ -4,6 +4,7 @@ import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import { Id } from "../../../../convex/_generated/dataModel";
 import { GameState } from "@/lib/types";
 import { useState } from "react";
+import { AttackType, ATTACK_TYPES } from "./PromptCard";
 
 interface SuggestionCardProps {
     prompt: { _id: Id<"prompts">; text: string };
@@ -15,13 +16,16 @@ interface SuggestionCardProps {
     captainIsBot?: boolean;
     captainId: Id<"players"> | undefined;
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    submitAnswerForBot: (args: { gameId: Id<"games">; playerId: Id<"players">; sessionToken: string; promptId: Id<"prompts">; text: string }) => Promise<any>;
+    submitAnswerForBot: (args: { gameId: Id<"games">; playerId: Id<"players">; sessionToken: string; promptId: Id<"prompts">; text: string; attackType?: AttackType }) => Promise<any>;
     showError: (code: string, message: string) => void;
+    /** Show attack type selector (only in Final round for bot captains) */
+    showAttackTypeSelector?: boolean;
 }
 
-export function SuggestionCard({ prompt, game, playerId, sessionToken, submitSuggestion, captainIsBot, captainId, submitAnswerForBot, showError }: SuggestionCardProps) {
+export function SuggestionCard({ prompt, game, playerId, sessionToken, submitSuggestion, captainIsBot, captainId, submitAnswerForBot, showError, showAttackTypeSelector }: SuggestionCardProps) {
     const [suggestionText, setSuggestionText] = useState("");
     const [isSubmitted, setIsSubmitted] = useState(false);
+    const [selectedAttackType, setSelectedAttackType] = useState<AttackType>("jab");
 
     const mySuggestions = game.suggestions?.filter((s) => s.promptId === prompt._id && s.senderId === playerId) || [];
     const promptIdSafe = prompt._id;
@@ -54,6 +58,61 @@ export function SuggestionCard({ prompt, game, playerId, sessionToken, submitSug
         >
             <CardHeader><CardTitle className="text-lg">{prompt.text}</CardTitle></CardHeader>
             <CardContent>
+                {/* Attack Type Selector (Final round only, for bot captains) */}
+                {showAttackTypeSelector && captainIsBot && (
+                    <div
+                        id={`attack-type-selector-${promptIdSafe}`}
+                        data-testid={`attack-type-selector-${promptIdSafe}`}
+                        className="space-y-2 mb-3"
+                    >
+                        <label className="text-sm font-semibold text-gray-700 uppercase tracking-wide">
+                            Choose Attack for Bot
+                        </label>
+                        <div className="grid grid-cols-3 gap-2">
+                            {ATTACK_TYPES.map((attack) => {
+                                const isSelected = selectedAttackType === attack.type;
+                                const riskColors = {
+                                    low: "border-green-500 bg-green-50 hover:bg-green-100",
+                                    medium: "border-yellow-500 bg-yellow-50 hover:bg-yellow-100",
+                                    high: "border-red-500 bg-red-50 hover:bg-red-100"
+                                };
+                                const selectedColors = {
+                                    low: "border-green-600 bg-green-200 ring-2 ring-green-400",
+                                    medium: "border-yellow-600 bg-yellow-200 ring-2 ring-yellow-400",
+                                    high: "border-red-600 bg-red-200 ring-2 ring-red-400"
+                                };
+
+                                return (
+                                    <button
+                                        key={attack.type}
+                                        id={`attack-type-${attack.type}-${promptIdSafe}`}
+                                        data-testid={`attack-type-${attack.type}-${promptIdSafe}`}
+                                        data-attack-type={attack.type}
+                                        data-selected={isSelected}
+                                        type="button"
+                                        className={`p-2 rounded-lg border-2 text-center transition-all ${
+                                            isSelected
+                                                ? selectedColors[attack.riskLevel]
+                                                : riskColors[attack.riskLevel]
+                                        }`}
+                                        onClick={() => setSelectedAttackType(attack.type)}
+                                        aria-pressed={isSelected}
+                                        aria-label={`${attack.label}: Deal ${attack.dealtMultiplier} damage, receive ${attack.receivedMultiplier} damage`}
+                                    >
+                                        <div className="font-bold text-sm">{attack.label}</div>
+                                        <div className="text-xs text-gray-600">
+                                            Deal {attack.dealtMultiplier} / Take {attack.receivedMultiplier}
+                                        </div>
+                                    </button>
+                                );
+                            })}
+                        </div>
+                        <p className="text-xs text-gray-500 italic text-center">
+                            {ATTACK_TYPES.find(a => a.type === selectedAttackType)?.description}
+                        </p>
+                    </div>
+                )}
+
                 <div className="flex flex-col sm:flex-row gap-2">
                     <Input
                         id={`corner-suggestion-input-${promptIdSafe}`}
@@ -99,6 +158,7 @@ export function SuggestionCard({ prompt, game, playerId, sessionToken, submitSug
                             data-testid={`corner-submit-for-bot-${promptIdSafe}`}
                             data-action="submit-answer-for-bot"
                             data-prompt-id={prompt._id}
+                            data-attack-type={showAttackTypeSelector ? selectedAttackType : undefined}
                             variant="destructive"
                             className="whitespace-nowrap"
                             aria-label={`Submit answer for Bot for: ${prompt.text}`}
@@ -113,7 +173,8 @@ export function SuggestionCard({ prompt, game, playerId, sessionToken, submitSug
                                         playerId: playerId!, // Corner man's ID for auth
                                         sessionToken,
                                         promptId: prompt._id,
-                                        text: trimmed
+                                        text: trimmed,
+                                        attackType: showAttackTypeSelector ? selectedAttackType : undefined
                                     });
                                     setIsSubmitted(true);
                                 } catch (e) {

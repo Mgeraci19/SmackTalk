@@ -35,11 +35,23 @@ export const autoAnswer = mutation({
             return;
         }
 
+        // Get game to check round for attack type selection
+        const game = await ctx.db.get(args.gameId);
+
         const text = `${player.name} ${BOT_WORDS[Math.floor(Math.random() * BOT_WORDS.length)]}`;
+
+        // In Round 3 (Final), bots pick random attack type
+        const attackTypes: Array<"jab" | "haymaker" | "flyingKick"> = ["jab", "haymaker", "flyingKick"];
+        const attackType = game?.currentRound === 3
+            ? attackTypes[Math.floor(Math.random() * attackTypes.length)]
+            : undefined;
+
         await ctx.db.insert("submissions", {
             promptId: args.promptId,
             playerId: args.playerId,
-            text
+            text,
+            submittedAt: Date.now(),
+            ...(attackType && { attackType })
         });
 
         const allPrompts = await ctx.db.query("prompts").withIndex("by_game", q => q.eq("gameId", args.gameId)).collect();

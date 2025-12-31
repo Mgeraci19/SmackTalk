@@ -1,13 +1,39 @@
 import { Id, Doc } from "../_generated/dataModel";
 import { MutationCtx } from "../_generated/server";
-import { PROMPTS } from "./constants";
 import { api } from "../_generated/api";
 import { PromptManager } from "./promptUtils";
 
 /**
+ * NEW GAME STRUCTURE (3 Rounds):
+ *
+ * Round 1: MAIN ROUND
+ * - 5 prompts per matchup
+ * - Random pairs
+ * - Special bar mechanic (+1.0 per win, triggers at 3.0 = KO)
+ * - HP damage at 0.5x for seeding
+ * - Losers become corner men
+ *
+ * THE CUT (after Round 1):
+ * - Top 4 by HP advance to semi-finals
+ * - Remaining players assigned as corner men
+ *
+ * Round 2: SEMI-FINALS
+ * - 4 prompts per match (3 jabs + 1 haymaker)
+ * - 4 fighters in 2 matches
+ * - Special bar mechanic (+1.0 per win, triggers at 3.0 = KO)
+ * - No HP damage
+ * - Winners advance to Final
+ *
+ * Round 3: FINAL
+ * - 200 HP each (reset)
+ * - Infinite prompts until KO
+ * - Attack type selection (jab/haymaker/flyingKick)
+ * - Special bar: 3 consecutive wins = auto KO (resets on non-win)
+ */
+
+/**
  * Guard function to verify players are valid for pairing
  * Throws an error if either player is KO'd or not a FIGHTER role
- * Note: Valid roles are "FIGHTER" and "CORNER_MAN" per schema
  */
 function assertValidPairing(p1: Doc<"players">, p2: Doc<"players">) {
     if (p1.knockedOut) {
@@ -28,395 +54,320 @@ function assertValidPairing(p1: Doc<"players">, p2: Doc<"players">) {
     }
 }
 
-export async function setupPhase1(ctx: MutationCtx, gameId: Id<"games">, players: Doc<"players">[]) {
-    console.log(`[GAME] Setting up Phase 1 (Series Matchups) for ${players.length} players`);
+// Bot Helper
+export function hasHumanCornerMan(captainId: Id<"players">, allPlayers: Doc<"players">[]) {
+    return allPlayers.some(p => p.role === "CORNER_MAN" && p.teamId === captainId && !p.isBot);
+}
 
-    // 1. Shuffle players
-    const shuffledPlayers = players.sort(() => Math.random() - 0.5);
+/**
+ * ROUND 1: MAIN ROUND
+ * - 5 prompts per matchup
+ * - Random pairs
+ * - All players start as FIGHTER with 100 HP
+ */
+export async function setupMainRound(ctx: MutationCtx, gameId: Id<"games">, players: Doc<"players">[]) {
+    console.log(`[GAME] Setting up Main Round for ${players.length} players`);
 
-    // Get Available Prompts Logic
+    const PROMPTS_PER_MATCHUP = 5;
+
+    // Initialize all players as fighters with 100 HP and reset special bar
+    for (const player of players) {
+        await ctx.db.patch(player._id, {
+            role: "FIGHTER",
+            hp: 100,
+            maxHp: 100,
+            knockedOut: false,
+            specialBar: 0,
+            winStreak: 0
+        });
+    }
+
+    // Shuffle players for random pairing
+    const shuffledPlayers = [...players].sort(() => Math.random() - 0.5);
+
+    // Get prompt manager
     const game = await ctx.db.get(gameId);
     if (!game) throw new Error("Game not found");
     const promptManager = new PromptManager(game.usedPromptIndices || []);
-    const getPrompts = (count: number) => promptManager.pick(count);
 
-    // Pairing Logic
+    // Create matchups (pair sequential players)
     for (let i = 0; i < shuffledPlayers.length; i += 2) {
-        // Handle Odd Player (Should not happen if we enforce even, but safety check)
         if (i + 1 >= shuffledPlayers.length) {
-            console.warn("Odd number of players in Phase 1 setup!");
+            // Odd player - pair with first player for extra match
+            console.warn(`[GAME] Odd number of players, ${shuffledPlayers[i].name} gets extra match with ${shuffledPlayers[0].name}`);
             const p1 = shuffledPlayers[i];
-            const p2 = shuffledPlayers[0]; // Pair with first player
-            const promptsTexts = getPrompts(3);
+            const p2 = shuffledPlayers[0];
+            const promptsTexts = promptManager.pick(PROMPTS_PER_MATCHUP);
+
             for (const text of promptsTexts) {
                 const promptId = await ctx.db.insert("prompts", { gameId, text, assignedTo: [p1._id, p2._id] });
-                if (p1.isBot) {
-                    const delay = 200 + Math.random() * 300;
-                    await ctx.scheduler.runAfter(delay, api.bots.autoAnswer, { gameId, playerId: p1._id, promptId });
-                }
+                await scheduleBotsToAnswer(ctx, gameId, p1, p2, promptId, players);
             }
             break;
         }
 
         const p1 = shuffledPlayers[i];
         const p2 = shuffledPlayers[i + 1];
-        const promptsTexts = getPrompts(3);
+        const promptsTexts = promptManager.pick(PROMPTS_PER_MATCHUP);
+
+        console.log(`[MAIN ROUND] Pairing: ${p1.name} vs ${p2.name} (${PROMPTS_PER_MATCHUP} prompts)`);
 
         for (const text of promptsTexts) {
             const promptId = await ctx.db.insert("prompts", { gameId, text, assignedTo: [p1._id, p2._id] });
-            if (p1.isBot) {
-                const delay = 200 + Math.random() * 300;
-                await ctx.scheduler.runAfter(delay, api.bots.autoAnswer, { gameId, playerId: p1._id, promptId });
-            }
-            if (p2.isBot) {
-                const delay = 300 + Math.random() * 300; // slightly offset from p1
-                await ctx.scheduler.runAfter(delay, api.bots.autoAnswer, { gameId, playerId: p2._id, promptId });
-            }
+            await scheduleBotsToAnswer(ctx, gameId, p1, p2, promptId, players);
         }
     }
 
-    // Update used indices
+    // Update used prompt indices
     await ctx.db.patch(gameId, { usedPromptIndices: promptManager.getUsedIndices() });
 }
 
-// Bot Helper
-export function hasHumanCornerMan(captainId: Id<"players">, allPlayers: Doc<"players">[]) {
-    return allPlayers.some(p => p.role === "CORNER_MAN" && p.teamId === captainId && !p.isBot);
+/**
+ * THE CUT: After Main Round
+ * - Rank all fighters by HP (descending)
+ * - Top 4 advance to semi-finals
+ * - Remaining fighters become corner men (randomly assigned to top 4)
+ */
+export async function performTheCut(ctx: MutationCtx, gameId: Id<"games">): Promise<{
+    semifinalists: Doc<"players">[];
+    eliminated: Doc<"players">[];
+}> {
+    console.log(`[THE CUT] Determining semi-finalists...`);
+
+    const players = await ctx.db.query("players")
+        .withIndex("by_game", q => q.eq("gameId", gameId))
+        .collect();
+
+    // Get all fighters (not already KO'd corner men)
+    const fighters = players.filter(p => p.role === "FIGHTER" && !p.knockedOut);
+
+    // Sort by HP descending (highest HP = best seeding)
+    fighters.sort((a, b) => (b.hp ?? 100) - (a.hp ?? 100));
+
+    console.log(`[THE CUT] Fighter rankings:`);
+    fighters.forEach((f, i) => console.log(`  ${i + 1}. ${f.name}: ${f.hp} HP`));
+
+    // Top 4 advance
+    const semifinalists = fighters.slice(0, 4);
+    const eliminated = fighters.slice(4);
+
+    console.log(`[THE CUT] Semi-finalists: ${semifinalists.map(p => p.name).join(", ")}`);
+    console.log(`[THE CUT] Eliminated: ${eliminated.map(p => p.name).join(", ")}`);
+
+    // Assign eliminated players as corner men to semifinalists who don't have one
+    // Get existing corner men assignments
+    const existingCornerMen = players.filter(p => p.role === "CORNER_MAN");
+    const captainsWithCornerMen = new Set(existingCornerMen.map(p => p.teamId));
+
+    // Find semifinalists who need corner men
+    const semifinalistsNeedingCornerMen = semifinalists.filter(s => !captainsWithCornerMen.has(s._id));
+
+    // Assign eliminated players to semifinalists (max 3 per team)
+    let eliminatedIndex = 0;
+    for (const semifinalist of semifinalistsNeedingCornerMen) {
+        if (eliminatedIndex >= eliminated.length) break;
+
+        // Count existing corner men for this semifinalist
+        const existingCount = existingCornerMen.filter(c => c.teamId === semifinalist._id).length;
+        const slotsAvailable = 3 - existingCount;
+
+        for (let slot = 0; slot < slotsAvailable && eliminatedIndex < eliminated.length; slot++) {
+            const cornerMan = eliminated[eliminatedIndex];
+            await ctx.db.patch(cornerMan._id, {
+                role: "CORNER_MAN",
+                teamId: semifinalist._id,
+                knockedOut: true,
+                becameCornerManInRound: 1
+            });
+            console.log(`[THE CUT] ${cornerMan.name} → Corner man for ${semifinalist.name}`);
+            eliminatedIndex++;
+        }
+    }
+
+    // Any remaining eliminated players get assigned randomly
+    while (eliminatedIndex < eliminated.length) {
+        // Find semifinalist with fewest corner men
+        const semifinalistCornerCounts = semifinalists.map(s => ({
+            semifinalist: s,
+            count: players.filter(p => p.role === "CORNER_MAN" && p.teamId === s._id).length
+        }));
+        semifinalistCornerCounts.sort((a, b) => a.count - b.count);
+
+        const target = semifinalistCornerCounts[0];
+        if (target.count >= 3) {
+            console.log(`[THE CUT] All semifinalists have max corner men, ${eliminated[eliminatedIndex].name} unassigned`);
+            eliminatedIndex++;
+            continue;
+        }
+
+        const cornerMan = eliminated[eliminatedIndex];
+        await ctx.db.patch(cornerMan._id, {
+            role: "CORNER_MAN",
+            teamId: target.semifinalist._id,
+            knockedOut: true,
+            becameCornerManInRound: 1
+        });
+        console.log(`[THE CUT] ${cornerMan.name} → Corner man for ${target.semifinalist.name} (random)`);
+        eliminatedIndex++;
+    }
+
+    // Reset special bars for semifinalists
+    for (const semifinalist of semifinalists) {
+        await ctx.db.patch(semifinalist._id, { specialBar: 0 });
+    }
+
+    return { semifinalists, eliminated };
 }
 
+/**
+ * ROUND 2: SEMI-FINALS
+ * - 4 prompts per match (3 jabs + 1 haymaker)
+ * - 4 fighters in 2 matches
+ * - No HP damage (special bar only)
+ */
+export async function setupSemiFinals(ctx: MutationCtx, gameId: Id<"games">, semifinalists: Doc<"players">[]) {
+    console.log(`[SEMI-FINALS] Setting up for ${semifinalists.length} fighters`);
 
-// Removed local autoAnswer, moved to bots.ts
+    if (semifinalists.length !== 4) {
+        console.error(`[SEMI-FINALS] Expected 4 semifinalists, got ${semifinalists.length}`);
+        // Take top 4 or fewer if not enough
+        semifinalists = semifinalists.slice(0, 4);
+    }
 
+    const PROMPTS_PER_MATCH = 4; // 3 jabs + 1 haymaker
 
-export async function setupPhase2(ctx: MutationCtx, gameId: Id<"games">, players: Doc<"players">[]) {
-    console.log(`[GAME] Setting up Phase 2 (The Cull) for ${players.length} players`);
-    console.log(`[GAME] All players status:`, players.map(p => ({
-        name: p.name,
-        role: p.role,
-        knockedOut: p.knockedOut,
-        hp: p.hp,
-        teamId: p.teamId
-    })));
-
-    // 1. Identify Captains (Players who own a Corner Man)
-    // These players get a BYE for this round.
-    const cornerMen = players.filter(p => p.role === "CORNER_MAN" && p.teamId);
-    const captainIds = new Set(cornerMen.map(p => p.teamId));
-    console.log(`[GAME] Captains (players with corner men):`, [...captainIds]);
-
-    // 2. Filter Survivors for Matchmaking (Not KO'd AND Not a Captain AND role is FIGHTER)
-    // Also check role === "FIGHTER" to be extra safe (CORNER_MAN should not be paired)
-    const survivors = players.filter(p =>
-        p.role === "FIGHTER" &&
-        !p.knockedOut &&
-        !captainIds.has(p._id)
-    );
-    console.log(`[GAME] Survivors for Pairing: ${survivors.length} (Captains skipped: ${captainIds.size})`);
-    console.log(`[GAME] Survivor names:`, survivors.map(p => p.name));
-
-    // if (survivors.length < 2) { ... handle in nextRound ... }
-
-    // 2. Sort by HP (Predatory Pairing: Low vs Low)
-    // Ascending HP
-    survivors.sort((a, b) => (a.hp ?? 100) - (b.hp ?? 100));
-
-    // Get Available Prompts Logic
+    // Get prompt manager
     const game = await ctx.db.get(gameId);
     if (!game) throw new Error("Game not found");
     const promptManager = new PromptManager(game.usedPromptIndices || []);
 
-    const getPrompts = (count: number) => promptManager.pick(count);
+    // Get all players for corner man lookup
+    const allPlayers = await ctx.db.query("players")
+        .withIndex("by_game", q => q.eq("gameId", gameId))
+        .collect();
 
-    // Pairing Logic
-    const pairings = [];
-    for (let i = 0; i < survivors.length; i += 2) {
-        if (i + 1 >= survivors.length) {
-            console.log(`[GAME] Odd survivor ${survivors[i].name} gets a Bye.`);
-            // No prompts assigned
-            break;
-        }
+    // Create 2 semi-final matches
+    // Match 1: #1 seed vs #4 seed
+    // Match 2: #2 seed vs #3 seed
+    const matches = [
+        { p1: semifinalists[0], p2: semifinalists[3] },
+        { p1: semifinalists[1], p2: semifinalists[2] }
+    ];
 
-        const p1 = survivors[i];
-        const p2 = survivors[i + 1];
+    for (const match of matches) {
+        const { p1, p2 } = match;
 
-        // Guard: Verify neither player is KO'd or wrong role
         assertValidPairing(p1, p2);
 
-        console.log(`[GAME] Pairing ${p1.name} (${p1.hp}) vs ${p2.name} (${p2.hp})`);
+        console.log(`[SEMI-FINALS] Match: ${p1.name} (${p1.hp} HP) vs ${p2.name} (${p2.hp} HP)`);
 
-        // Store pairing for transition display
-        pairings.push({ fighter1Id: p1._id, fighter2Id: p2._id });
-
-        const promptsTexts = getPrompts(3);
+        const promptsTexts = promptManager.pick(PROMPTS_PER_MATCH);
 
         for (const text of promptsTexts) {
             const promptId = await ctx.db.insert("prompts", { gameId, text, assignedTo: [p1._id, p2._id] });
-            if (p1.isBot && !hasHumanCornerMan(p1._id, players)) {
-                const delay = 200 + Math.random() * 300;
-                await ctx.scheduler.runAfter(delay, api.bots.autoAnswer, { gameId, playerId: p1._id, promptId });
-            }
-            if (p2.isBot && !hasHumanCornerMan(p2._id, players)) {
-                const delay = 300 + Math.random() * 300;
-                await ctx.scheduler.runAfter(delay, api.bots.autoAnswer, { gameId, playerId: p2._id, promptId });
-            }
+            await scheduleBotsToAnswer(ctx, gameId, p1, p2, promptId, allPlayers);
         }
     }
 
-    await ctx.db.patch(gameId, {
-        usedPromptIndices: promptManager.getUsedIndices(),
-        round2Pairings: pairings
-    });
-}
-
-export async function resolvePhase2(ctx: MutationCtx, gameId: Id<"games">) {
-    console.log(`[GAME] Resolving Phase 2 (Executions)`);
-    // "One Must Fall" Logic: Active players who fought and have lower HP than opponent die.
-
-    // Track who gets executed for transition display
-    const executedPlayerIds: Id<"players">[] = [];
-
-    // We can infer pairings from the Prompts, or just sort survivors again.
-    // simpler: Get all players. Any who was NOT knockedOut before R2 but is now effectively "Loser" needs processing.
-    // Wait, the rule is "If after 3 fights, both > 0 HP, Lower One is executed".
-    // If someone was KO'd by damage mid-round, they are already KO'd.
-
-    const players = await ctx.db.query("players").withIndex("by_game", (q) => q.eq("gameId", gameId)).collect();
-    // Only consider FIGHTER role (not CORNER_MAN) and not KO'd
-    const survivors = players.filter((p) => p.role === "FIGHTER" && !p.knockedOut);
-
-    // We need to re-identify the Pairs to compare them.
-    // We can look at prompts from Round 2.
-    // Or just group by who fought whom.
-
-    const r2Prompts = await ctx.db.query("prompts").withIndex("by_game", (q) => q.eq("gameId", gameId)).collect();
-
-    // Map of PlayerID -> OpponentID
-    const pairings = new Map<string, string>();
-    for (const p of r2Prompts) {
-        if (p.assignedTo && p.assignedTo.length === 2) {
-            const [p1, p2] = p.assignedTo;
-            pairings.set(p1, p2);
-            pairings.set(p2, p1);
-        }
-    }
-
-    const processed = new Set<string>();
-
-    for (const p of survivors) {
-        if (processed.has(p._id)) continue;
-        const opponentId = pairings.get(p._id);
-
-        if (opponentId) {
-            const opponent = players.find((pl) => pl._id === opponentId);
-
-            // If opponent is already KO'd naturally, P wins.
-            if (!opponent || opponent.knockedOut) {
-                // P Survives.
-            } else {
-                // Both Alive. Compare HP.
-                const pHP = p.hp ?? 100;
-                const oHP = opponent.hp ?? 100;
-
-                if (pHP < oHP) {
-                    // P Dies.
-                    console.log(`[CULL] Executing ${p.name} (${pHP} HP) vs ${opponent.name} (${oHP} HP)`);
-                    await ctx.db.patch(p._id, { knockedOut: true, hp: 0, role: "CORNER_MAN", teamId: opponent._id, becameCornerManInRound: 2 });
-                    executedPlayerIds.push(p._id);
-                } else if (oHP < pHP) {
-                    // Opponent Dies.
-                    console.log(`[CULL] Executing ${opponent.name} (${oHP} HP) vs ${p.name} (${pHP} HP)`);
-                    await ctx.db.patch(opponent._id, { knockedOut: true, hp: 0, role: "CORNER_MAN", teamId: p._id, becameCornerManInRound: 2 });
-                    executedPlayerIds.push(opponent._id);
-                } else {
-                    // Tie? Coin flip or Sudden Death?
-                    // For MVP, random kill.
-                    if (Math.random() > 0.5) {
-                        await ctx.db.patch(p._id, { knockedOut: true, hp: 0, role: "CORNER_MAN", teamId: opponent._id, becameCornerManInRound: 2 });
-                        executedPlayerIds.push(p._id);
-                    } else {
-                        await ctx.db.patch(opponent._id, { knockedOut: true, hp: 0, role: "CORNER_MAN", teamId: p._id, becameCornerManInRound: 2 });
-                        executedPlayerIds.push(opponent._id);
-                    }
-                }
-            }
-            processed.add(p._id);
-            if (opponent) processed.add(opponent._id);
-        } else {
-            // Bye case? They survived.
-        }
-    }
-
-    // Store executed player IDs for transition display
-    if (executedPlayerIds.length > 0) {
-        await ctx.db.patch(gameId, { round2ExecutedPlayerIds: executedPlayerIds });
-        console.log(`[GAME] Stored ${executedPlayerIds.length} executed player IDs for transition`);
-    }
-}
-
-export async function setupPhase3(ctx: MutationCtx, gameId: Id<"games">, players: Doc<"players">[]) {
-    console.log(`[GAME] Setting up Phase 3: The Gauntlet`);
-    console.log(`[GAME] All players:`, players.map(p => ({ name: p.name, role: p.role, knockedOut: p.knockedOut, hp: p.hp })));
-
-    // Active Teams = Players who are NOT Knocked Out AND are actual fighters (not corner men)
-    // Corner men should NOT receive prompts - they can only send suggestions
-    const activeFighters = players.filter((p) => p.role === "FIGHTER" && !p.knockedOut);
-    console.log(`[GAME] Active Fighters for Gauntlet: ${activeFighters.length}`);
-    console.log(`[GAME] Active Fighter names:`, activeFighters.map(p => p.name));
-
-    if (activeFighters.length < 2) {
-        console.error(`[GAME] ERROR: Phase 3 has fewer than 2 active fighters! Cannot create prompts.`);
-        console.error(`[GAME] This should not happen - game should have ended earlier.`);
-        // Should trigger Game Over probably?
-        return;
-    }
-
-    // Matchmaking: "Fewest Fights" priority.
-    // For MVP, we can just create a Round-Robin or Random set of 3 prompts each.
-    // Random Pairs for 3 rounds.
-
-    // Reuse prompt picker
-    const game = await ctx.db.get(gameId);
-    if (!game) throw new Error("Game not found");
-    const promptManager = new PromptManager(game.usedPromptIndices || []);
-
-    const getPrompt = () => promptManager.pick(1)[0];
-
-    // Schedule 3 fights per fighter.
-    // We shuffle fighters and pair them up.
-    // If odd, we rotate?
-    // Simplest approach: Random Pairings for Slot 1, Slot 2, Slot 3.
-
-    for (let round = 0; round < 3; round++) {
-        // Shuffle
-        const shuffled = [...activeFighters].sort(() => Math.random() - 0.5);
-
-        for (let i = 0; i < shuffled.length; i += 2) {
-            const p1 = shuffled[i];
-            let p2 = i + 1 < shuffled.length ? shuffled[i + 1] : shuffled[0]; // Wrap around if odd
-
-            // avoid self-match if odd and length=1 (not possible as we checked length < 2)
-            if (p1._id === p2._id && shuffled.length > 1) {
-                // Should not happen with wrap around unless length=1
-                p2 = shuffled[1];
-            }
-
-            // Guard: Verify neither player is KO'd or wrong role
-            assertValidPairing(p1, p2);
-
-            const text = getPrompt();
-
-            const promptId = await ctx.db.insert("prompts", { gameId, text, assignedTo: [p1._id, p2._id] });
-
-            if (p1.isBot && !hasHumanCornerMan(p1._id, players)) {
-                const delay = 200 + Math.random() * 300;
-                await ctx.scheduler.runAfter(delay, api.bots.autoAnswer, { gameId, playerId: p1._id, promptId });
-            }
-            if (p2.isBot && !hasHumanCornerMan(p2._id, players)) {
-                const delay = 300 + Math.random() * 300;
-                await ctx.scheduler.runAfter(delay, api.bots.autoAnswer, { gameId, playerId: p2._id, promptId });
-            }
-        }
-    }
-
+    // Update used prompt indices
     await ctx.db.patch(gameId, { usedPromptIndices: promptManager.getUsedIndices() });
 }
 
-export async function setupPhase4(ctx: MutationCtx, gameId: Id<"games">, players: Doc<"players">[]) {
-    console.log(`[GAME] Setting up Phase 4: The Final Showdown`);
+/**
+ * ROUND 3: FINAL
+ * - 200 HP each (reset)
+ * - Creates initial prompt
+ * - Infinite prompts until KO (handled by createFinalPrompt)
+ */
+export async function setupFinal(ctx: MutationCtx, gameId: Id<"games">, finalists: Doc<"players">[]) {
+    console.log(`[FINAL] Setting up Final Showdown`);
 
-    // 1. Identify the Final 2 Fighters (must be FIGHTER role and not KO'd)
-    const activeFighters = players.filter((p) => p.role === "FIGHTER" && !p.knockedOut);
-    console.log(`[GAME] Finalists: ${activeFighters.map((p) => p.name).join(", ")}`);
-
-    if (activeFighters.length !== 2) {
-        console.warn(`[GAME] Phase 4 Error: Expected 2 fighters, found ${activeFighters.length}`);
-        // If < 2, we might have a winner already or error. If > 2, something went wrong in Phase 3.
-        // For robustness, we could take top 2 by HP?
-    }
-
-    // 2. Reset HP to 100 for Finalists
-    // If more than 2 survivors, pick top 2 by HP
-    activeFighters.sort((a, b) => (b.hp ?? 0) - (a.hp ?? 0));
-    const finalists = activeFighters.slice(0, 2);
-
-    for (const fighter of finalists) {
-        await ctx.db.patch(fighter._id, { hp: 100 });
+    if (finalists.length !== 2) {
+        console.error(`[FINAL] Expected 2 finalists, got ${finalists.length}`);
+        // Take top 2 by HP
+        finalists = finalists.slice(0, 2);
     }
 
     const p1 = finalists[0];
     const p2 = finalists[1];
 
-    if (!p1 || !p2) return; // safety
+    if (!p1 || !p2) {
+        console.error(`[FINAL] Not enough finalists!`);
+        return;
+    }
 
-    // Guard: Verify neither player is KO'd or wrong role
     assertValidPairing(p1, p2);
 
-    // 3. Create Prompts (3 rounds for now, as per MVP plan)
-    // "Players in round 4 continually have to answer prompts... First 3 prompts are created as normal."
-    // "If both players are still alive after this then just assign the highest HP player as the winner."
-    // TODO: We will come back to this functionality (infinite prompts until death).
+    // Reset HP to 200 for final and clear special bar
+    for (const finalist of finalists) {
+        await ctx.db.patch(finalist._id, {
+            hp: 200,
+            maxHp: 200,
+            specialBar: 0,
+            winStreak: 0
+        });
+    }
 
+    console.log(`[FINAL] ${p1.name} vs ${p2.name} - Both reset to 200 HP`);
+
+    // Get all players for corner man lookup
+    const allPlayers = await ctx.db.query("players")
+        .withIndex("by_game", q => q.eq("gameId", gameId))
+        .collect();
+
+    // Create initial prompt
     const game = await ctx.db.get(gameId);
     if (!game) throw new Error("Game not found");
     const promptManager = new PromptManager(game.usedPromptIndices || []);
 
-    const getPrompt = () => promptManager.pick(1)[0];
-
-    // Generate just 1 prompt to start (Sudden Death style)
-    const text = getPrompt();
+    const [text] = promptManager.pick(1);
     const promptId = await ctx.db.insert("prompts", { gameId, text, assignedTo: [p1._id, p2._id] });
-    if (p1.isBot && !hasHumanCornerMan(p1._id, players)) {
-        const delay = 200 + Math.random() * 300;
-        await ctx.scheduler.runAfter(delay, api.bots.autoAnswer, { gameId, playerId: p1._id, promptId });
-    }
-    if (p2.isBot && !hasHumanCornerMan(p2._id, players)) {
-        const delay = 300 + Math.random() * 300;
-        await ctx.scheduler.runAfter(delay, api.bots.autoAnswer, { gameId, playerId: p2._id, promptId });
-    }
 
     await ctx.db.patch(gameId, { usedPromptIndices: promptManager.getUsedIndices() });
+
+    await scheduleBotsToAnswer(ctx, gameId, p1, p2, promptId, allPlayers);
 }
 
-export async function createSuddenDeathPrompt(ctx: MutationCtx, gameId: Id<"games">, p1: Doc<"players">, p2: Doc<"players">, players: Doc<"players">[]) {
-    console.log(`[GAME] Creating new Sudden Death prompt, cleaning up old data...`);
+/**
+ * Create new Final prompt for sudden death
+ * Called when both finalists survive a round
+ */
+export async function createFinalPrompt(ctx: MutationCtx, gameId: Id<"games">, p1: Doc<"players">, p2: Doc<"players">, players: Doc<"players">[]) {
+    console.log(`[FINAL] Creating new sudden death prompt...`);
 
-    // Guard: Verify neither player is KO'd or wrong role
     assertValidPairing(p1, p2);
 
-    // Clean up ALL old prompts, submissions, votes, AND suggestions from previous Sudden Death rounds
+    // Clean up old prompts, submissions, votes, and suggestions
     const oldPrompts = await ctx.db.query("prompts").withIndex("by_game", (q) => q.eq("gameId", gameId)).collect();
 
-    // Delete in reverse order: votes -> submissions -> suggestions -> prompts (to avoid orphans)
     for (const oldPrompt of oldPrompts) {
-        // Delete votes for this prompt
+        // Delete votes
         const oldVotes = await ctx.db.query("votes").withIndex("by_prompt", (q) => q.eq("promptId", oldPrompt._id)).collect();
         for (const vote of oldVotes) {
             await ctx.db.delete(vote._id);
         }
-        console.log(`[CLEANUP] Deleted ${oldVotes.length} old votes for prompt ${oldPrompt._id}`);
 
-        // Delete submissions for this prompt
+        // Delete submissions
         const oldSubs = await ctx.db.query("submissions").withIndex("by_prompt", (q) => q.eq("promptId", oldPrompt._id)).collect();
         for (const sub of oldSubs) {
             await ctx.db.delete(sub._id);
         }
-        console.log(`[CLEANUP] Deleted ${oldSubs.length} old submissions for prompt ${oldPrompt._id}`);
 
-        // Delete suggestions for this prompt
+        // Delete suggestions
         const oldSuggestions = await ctx.db.query("suggestions")
             .filter((q) => q.eq(q.field("promptId"), oldPrompt._id))
             .collect();
         for (const suggestion of oldSuggestions) {
             await ctx.db.delete(suggestion._id);
         }
-        console.log(`[CLEANUP] Deleted ${oldSuggestions.length} old suggestions for prompt ${oldPrompt._id}`);
 
-        // Delete the prompt itself
+        // Delete prompt
         await ctx.db.delete(oldPrompt._id);
     }
 
-    console.log(`[CLEANUP] Cleanup complete! Creating new prompt...`);
+    console.log(`[FINAL] Cleanup complete, creating new prompt...`);
 
+    // Create new prompt
     const game = await ctx.db.get(gameId);
     if (!game) throw new Error("Game not found");
 
@@ -424,27 +375,98 @@ export async function createSuddenDeathPrompt(ctx: MutationCtx, gameId: Id<"game
     const [text] = promptManager.pick(1);
 
     const promptId = await ctx.db.insert("prompts", { gameId, text, assignedTo: [p1._id, p2._id] });
-    console.log(`[GAME] New Sudden Death prompt created: ${promptId}`);
+    console.log(`[FINAL] New prompt created: ${promptId}`);
 
-    // Update game state FIRST before scheduling any bot actions
+    // Update game state
     await ctx.db.patch(gameId, {
         currentPromptId: promptId,
         status: "PROMPTS",
-        roundStatus: undefined, // Reset round status
+        roundStatus: undefined,
         usedPromptIndices: promptManager.getUsedIndices()
     });
 
-    // Auto-answer logic needs to verify Human Corner Man
-    if (p1.isBot && !hasHumanCornerMan(p1._id, players)) {
+    // Schedule bots to answer
+    await scheduleBotsToAnswer(ctx, gameId, p1, p2, promptId, players);
+
+    // Schedule bots to send suggestions
+    const suggestionDelay = 500 + Math.random() * 500;
+    await ctx.scheduler.runAfter(suggestionDelay, api.bots.sendSuggestions, { gameId });
+}
+
+/**
+ * Helper: Schedule bots to auto-answer
+ */
+async function scheduleBotsToAnswer(
+    ctx: MutationCtx,
+    gameId: Id<"games">,
+    p1: Doc<"players">,
+    p2: Doc<"players">,
+    promptId: Id<"prompts">,
+    allPlayers: Doc<"players">[]
+) {
+    if (p1.isBot && !hasHumanCornerMan(p1._id, allPlayers)) {
         const delay = 200 + Math.random() * 300;
         await ctx.scheduler.runAfter(delay, api.bots.autoAnswer, { gameId, playerId: p1._id, promptId });
     }
-    if (p2.isBot && !hasHumanCornerMan(p2._id, players)) {
+    if (p2.isBot && !hasHumanCornerMan(p2._id, allPlayers)) {
         const delay = 300 + Math.random() * 300;
         await ctx.scheduler.runAfter(delay, api.bots.autoAnswer, { gameId, playerId: p2._id, promptId });
     }
+}
 
-    // Schedule bots to send suggestions to their human captains
-    const suggestionDelay = 500 + Math.random() * 500;
-    await ctx.scheduler.runAfter(suggestionDelay, api.bots.sendSuggestions, { gameId });
+// ============================================================================
+// LEGACY FUNCTIONS (kept for backward compatibility, may be removed later)
+// ============================================================================
+
+/** @deprecated Use setupMainRound instead */
+export async function setupPhase1(ctx: MutationCtx, gameId: Id<"games">, players: Doc<"players">[]) {
+    return setupMainRound(ctx, gameId, players);
+}
+
+/** @deprecated No longer used in new game flow */
+export async function setupPhase2(ctx: MutationCtx, gameId: Id<"games">, players: Doc<"players">[]) {
+    console.warn("[DEPRECATED] setupPhase2 called - using legacy behavior");
+    // Legacy Phase 2 behavior - just create some prompts
+    const game = await ctx.db.get(gameId);
+    if (!game) throw new Error("Game not found");
+    const promptManager = new PromptManager(game.usedPromptIndices || []);
+
+    const activeFighters = players.filter(p => p.role === "FIGHTER" && !p.knockedOut);
+    const shuffled = [...activeFighters].sort(() => Math.random() - 0.5);
+
+    for (let i = 0; i < shuffled.length; i += 2) {
+        if (i + 1 >= shuffled.length) break;
+        const p1 = shuffled[i];
+        const p2 = shuffled[i + 1];
+        const texts = promptManager.pick(3);
+        for (const text of texts) {
+            await ctx.db.insert("prompts", { gameId, text, assignedTo: [p1._id, p2._id] });
+        }
+    }
+
+    await ctx.db.patch(gameId, { usedPromptIndices: promptManager.getUsedIndices() });
+}
+
+/** @deprecated No longer used in new game flow */
+export async function resolvePhase2(_ctx: MutationCtx, _gameId: Id<"games">) {
+    console.warn("[DEPRECATED] resolvePhase2 called - this should not happen in new game flow");
+}
+
+/** @deprecated Use setupSemiFinals instead */
+export async function setupPhase3(ctx: MutationCtx, gameId: Id<"games">, players: Doc<"players">[]) {
+    console.warn("[DEPRECATED] setupPhase3 called - redirecting to setupSemiFinals");
+    const fighters = players.filter(p => p.role === "FIGHTER" && !p.knockedOut);
+    return setupSemiFinals(ctx, gameId, fighters);
+}
+
+/** @deprecated Use setupFinal instead */
+export async function setupPhase4(ctx: MutationCtx, gameId: Id<"games">, players: Doc<"players">[]) {
+    console.warn("[DEPRECATED] setupPhase4 called - redirecting to setupFinal");
+    const fighters = players.filter(p => p.role === "FIGHTER" && !p.knockedOut);
+    return setupFinal(ctx, gameId, fighters);
+}
+
+/** @deprecated Use createFinalPrompt instead */
+export async function createSuddenDeathPrompt(ctx: MutationCtx, gameId: Id<"games">, p1: Doc<"players">, p2: Doc<"players">, players: Doc<"players">[]) {
+    return createFinalPrompt(ctx, gameId, p1, p2, players);
 }

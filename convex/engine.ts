@@ -1,12 +1,38 @@
 import { mutation } from "./_generated/server";
 import { v } from "convex/values";
-import { setupPhase1, setupPhase2, setupPhase3, setupPhase4, resolvePhase2, createSuddenDeathPrompt } from "./lib/phases";
+import {
+    setupMainRound,
+    setupSemiFinals,
+    setupFinal,
+    performTheCut,
+    createFinalPrompt
+} from "./lib/phases";
 import { resolveBattle } from "./lib/gameLogic";
 import { api } from "./_generated/api";
 import { validateVipPlayer } from "./lib/auth";
 
-
-
+/**
+ * NEW GAME FLOW (3 Rounds):
+ *
+ * Round 1: MAIN ROUND
+ * - 5 prompts per matchup
+ * - Special bar mechanic
+ * - Losers become corner men
+ *
+ * THE CUT (transition to Round 2):
+ * - Top 4 by HP advance
+ * - Others assigned as corner men
+ *
+ * Round 2: SEMI-FINALS
+ * - 4 prompts per match (3 jabs + 1 haymaker)
+ * - 2 semi-final matches
+ * - Winners advance to Final
+ *
+ * Round 3: FINAL
+ * - 200 HP each
+ * - Infinite prompts until KO
+ * - Attack type selection
+ */
 
 export const nextBattle = mutation({
     args: {
@@ -28,7 +54,7 @@ export const nextBattle = mutation({
             await resolveBattle(ctx, args.gameId, game.currentPromptId, game.currentRound);
         }
 
-        // Generic check: If only 1 fighter remains, game ends immediately
+        // Check for game end conditions
         const playersAfterBattle = await ctx.db.query("players")
             .withIndex("by_game", q => q.eq("gameId", args.gameId))
             .collect();
@@ -36,6 +62,7 @@ export const nextBattle = mutation({
             p => p.role === "FIGHTER" && !p.knockedOut
         );
 
+        // Game ends if only 1 (or 0) fighters remain
         if (activeFighters.length <= 1) {
             if (activeFighters.length === 1) {
                 console.log(`[GAME] Only 1 fighter remains: ${activeFighters[0].name} wins! Ending game.`);
@@ -47,52 +74,41 @@ export const nextBattle = mutation({
                 currentPromptId: undefined,
                 roundStatus: undefined
             });
-            // Cleanup
             const cleanupDelay = 60 * 60 * 1000; // 1 Hour
             await ctx.scheduler.runAfter(cleanupDelay, api.admin.deleteGame, { gameId: args.gameId });
             return;
         }
 
-        // Check for Round 4 Winner (Sudden Death)
-        if (game.currentRound === 4) {
-            const activePlayers = await ctx.db.query("players").withIndex("by_game", (q) => q.eq("gameId", args.gameId)).collect();
-            const survivors = activePlayers.filter((p) => !p.knockedOut);
-
+        // Round 3 (Final): Check for winner
+        if (game.currentRound === 3) {
+            const survivors = playersAfterBattle.filter(p => !p.knockedOut && p.role === "FIGHTER");
             if (survivors.length === 1) {
-                console.log(`[GAME] Round 4 Ended: Winner is ${survivors[0].name}`);
+                console.log(`[FINAL] Winner: ${survivors[0].name}!`);
                 await ctx.db.patch(args.gameId, {
                     status: "RESULTS",
                     currentPromptId: undefined,
                     roundStatus: undefined
                 });
-                // Cleanup
-                const cleanupDelay = 60 * 60 * 1000; // 1 Hour
+                const cleanupDelay = 60 * 60 * 1000;
                 await ctx.scheduler.runAfter(cleanupDelay, api.admin.deleteGame, { gameId: args.gameId });
                 return;
             }
         }
 
-        // NOTE: Removed Round 3 early exit check here (G2 fix).
-        // The round should complete all remaining prompts first.
-        // Prompts with KO'd players are already skipped by the logic below (lines 93+).
-        // The ≤1 fighter check above handles the "only 1 survivor" case.
-
-        // Move to NEXT prompt
+        // Find next prompt
         const allPrompts = await ctx.db.query("prompts").withIndex("by_game", q => q.eq("gameId", args.gameId)).collect();
         const currentIndex = allPrompts.findIndex(p => p._id === game.currentPromptId);
 
-        // Refresh players to check for knockouts
+        // Refresh players for KO check
         const currentPlayers = await ctx.db.query("players").withIndex("by_game", q => q.eq("gameId", args.gameId)).collect();
         const knockedOutIds = new Set(currentPlayers.filter(p => p.knockedOut).map(p => p._id));
 
         let nextPromptId = null;
 
-        // Find the next prompt where NO assigned player is knocked out
+        // Find next prompt where no assigned player is knocked out
         for (let i = currentIndex + 1; i < allPrompts.length; i++) {
             const p = allPrompts[i];
             const assignedIds = p.assignedTo || [];
-
-            // If any player in this prompt is knocked out, we skip it (unless it's empty/everyone is somehow KO'd, but assuming pairing logic holds)
             const isMatchupDead = assignedIds.some(id => knockedOutIds.has(id));
 
             if (!isMatchupDead) {
@@ -108,24 +124,22 @@ export const nextBattle = mutation({
                 currentPromptId: nextPromptId,
                 roundStatus: "VOTING"
             });
-            // BOTS VOTE
+            // Bot voting
             const delay = 300 + Math.random() * 400;
             await ctx.scheduler.runAfter(delay, api.bots.castVotes, { gameId: args.gameId, promptId: nextPromptId });
         } else {
-            // If no next prompt found
-            if (game.currentRound === 4) {
-                // Round 4 Continuous Sudden Death Logic
-                const updatedPlayers = await ctx.db.query("players").withIndex("by_game", q => q.eq("gameId", args.gameId)).collect();
-                const survivors = updatedPlayers.filter(p => !p.knockedOut);
-
+            // No more prompts in this round
+            if (game.currentRound === 3) {
+                // Final: Create new sudden death prompt if both survive
+                const survivors = currentPlayers.filter(p => !p.knockedOut && p.role === "FIGHTER");
                 if (survivors.length === 2) {
-                    console.log(`[GAME] Round 4: No winner yet, starting next Sudden Death prompt!`);
-                    await createSuddenDeathPrompt(ctx, args.gameId, survivors[0], survivors[1], updatedPlayers);
+                    console.log(`[FINAL] Both finalists survived, creating new prompt...`);
+                    await createFinalPrompt(ctx, args.gameId, survivors[0], survivors[1], currentPlayers);
                     return;
                 }
             }
 
-            // End of Round
+            // End of Round - transition to ROUND_RESULTS
             const maxRounds = game.maxRounds || 3;
             if (game.currentRound < maxRounds) {
                 await ctx.db.patch(args.gameId, {
@@ -135,9 +149,12 @@ export const nextBattle = mutation({
                 });
             } else {
                 // Game Over
-                await ctx.db.patch(args.gameId, { status: "RESULTS", currentPromptId: undefined, roundStatus: undefined });
-                // Cleanup
-                const cleanupDelay = 60 * 60 * 1000; // 1 Hour
+                await ctx.db.patch(args.gameId, {
+                    status: "RESULTS",
+                    currentPromptId: undefined,
+                    roundStatus: undefined
+                });
+                const cleanupDelay = 60 * 60 * 1000;
                 await ctx.scheduler.runAfter(cleanupDelay, api.admin.deleteGame, { gameId: args.gameId });
             }
         }
@@ -157,68 +174,86 @@ export const nextRound = mutation({
         const game = await ctx.db.get(args.gameId);
         if (!game) return;
 
-        // Depending on Round Number, pick Phase
         const targetRound = game.currentRound + 1;
+        console.log(`[NEXT ROUND] Transitioning from Round ${game.currentRound} to Round ${targetRound}`);
 
-        if (targetRound === 3) {
-            console.log("[GAME] Starting Phase 3: The Gauntlet");
-            // 1. Resolve Phase 2 Eliminations (Needs OLD prompts to determine pairings)
-            await resolvePhase2(ctx, args.gameId);
-        }
-
-        await ctx.db.patch(args.gameId, { currentRound: targetRound });
-
-        // Reset all winStreaks and combos at round boundaries
-        const allPlayers = await ctx.db.query("players").withIndex("by_game", q => q.eq("gameId", args.gameId)).collect();
-        for (const player of allPlayers) {
-            const hasStreak = player.winStreak && player.winStreak > 0;
-            const hasCombo = player.combo && player.combo > 0;
-            if (hasStreak || hasCombo) {
-                console.log(`[ROUND RESET] Resetting ${player.name}'s winStreak: ${player.winStreak || 0} → 0, combo: ${player.combo || 0} → 0`);
-                await ctx.db.patch(player._id, { winStreak: 0, combo: 0 });
-            }
-        }
-
-        // Clean old data 
+        // Clean old prompts
         const oldPrompts = await ctx.db.query("prompts").withIndex("by_game", q => q.eq("gameId", args.gameId)).collect();
         for (const p of oldPrompts) await ctx.db.delete(p._id);
 
+        // Get all players
         const players = await ctx.db.query("players").withIndex("by_game", q => q.eq("gameId", args.gameId)).collect();
 
-        if (targetRound === 2) {
-            console.log("[GAME] Starting Phase 2: The Cull");
-            await setupPhase2(ctx, args.gameId, players);
+        // Reset win streaks and special bars at round boundaries (except for Final entry)
+        for (const player of players) {
+            if (player.role === "FIGHTER" && !player.knockedOut) {
+                await ctx.db.patch(player._id, { winStreak: 0 });
+                // Special bar is reset in performTheCut and setupFinal
+            }
+        }
 
-            // Check if any matchups were actually created (It's possible everyone has a Bye)
-            const promptsAfterSetup = await ctx.db.query("prompts").withIndex("by_game", q => q.eq("gameId", args.gameId)).collect();
-            if (promptsAfterSetup.length === 0) {
-                console.log("[GAME] Round 2 Auto-Pass: No matchups needed (All survivors have Byes). Advancing to Results.");
+        // Update current round
+        await ctx.db.patch(args.gameId, { currentRound: targetRound });
+
+        if (targetRound === 2) {
+            // Transition: Main Round → Semi-Finals
+            console.log(`[GAME] Performing The Cut...`);
+
+            // Perform The Cut (determine semi-finalists, assign corner men)
+            const { semifinalists } = await performTheCut(ctx, args.gameId);
+
+            if (semifinalists.length < 2) {
+                console.log(`[GAME] Not enough semifinalists, ending game`);
                 await ctx.db.patch(args.gameId, {
-                    status: "ROUND_RESULTS", // Go straight to results so Host sees recap/next button
+                    status: "RESULTS",
                     currentPromptId: undefined,
                     roundStatus: undefined
                 });
-                return; // Exit here, do not set status to PROMPTS below
+                const cleanupDelay = 60 * 60 * 1000;
+                await ctx.scheduler.runAfter(cleanupDelay, api.admin.deleteGame, { gameId: args.gameId });
+                return;
             }
-        } else if (targetRound === 3) {
-            // 2. Refetch players to get updated KO status
-            const updatedPlayers = await ctx.db.query("players").withIndex("by_game", q => q.eq("gameId", args.gameId)).collect();
 
-            // 3. Setup Phase 3
-            await setupPhase3(ctx, args.gameId, updatedPlayers);
-        } else if (targetRound === 4) {
+            // Setup Semi-Finals
+            console.log(`[GAME] Setting up Semi-Finals with ${semifinalists.length} fighters`);
+            await setupSemiFinals(ctx, args.gameId, semifinalists);
+
+        } else if (targetRound === 3) {
+            // Transition: Semi-Finals → Final
+            console.log(`[GAME] Setting up Final Showdown`);
+
+            // Get remaining fighters (semi-final winners)
             const updatedPlayers = await ctx.db.query("players").withIndex("by_game", q => q.eq("gameId", args.gameId)).collect();
-            await setupPhase4(ctx, args.gameId, updatedPlayers);
+            const finalists = updatedPlayers.filter(p => p.role === "FIGHTER" && !p.knockedOut);
+
+            if (finalists.length !== 2) {
+                console.error(`[GAME] Expected 2 finalists, got ${finalists.length}`);
+                // Take top 2 by HP
+                finalists.sort((a, b) => (b.hp ?? 0) - (a.hp ?? 0));
+            }
+
+            await setupFinal(ctx, args.gameId, finalists.slice(0, 2));
+
         } else {
-            // Default back to Phase 1 setup (or Final Showdown TBD)
-            console.log(`[GAME] Starting Round ${targetRound} (Default Setup)`);
-            await setupPhase1(ctx, args.gameId, players);
+            // Round 1 or fallback: Main Round setup
+            console.log(`[GAME] Starting Round ${targetRound} (Main Round)`);
+            await setupMainRound(ctx, args.gameId, players);
         }
 
-        // Check if we can auto-advance to VOTING (e.g. if all active players are bots who auto-answered)
+        // Check if we can auto-advance to VOTING (all bots answered)
         const allPrompts = await ctx.db.query("prompts").withIndex("by_game", q => q.eq("gameId", args.gameId)).collect();
-        const totalExpected = allPrompts.length * 2; // Assuming 2 players per pair
 
+        if (allPrompts.length === 0) {
+            console.log(`[GAME] No prompts created, advancing to Round Results`);
+            await ctx.db.patch(args.gameId, {
+                status: "ROUND_RESULTS",
+                currentPromptId: undefined,
+                roundStatus: undefined
+            });
+            return;
+        }
+
+        const totalExpected = allPrompts.length * 2;
         let totalReceived = 0;
         for (const prompt of allPrompts) {
             const subs = await ctx.db.query("submissions").withIndex("by_prompt", q => q.eq("promptId", prompt._id)).collect();
@@ -226,13 +261,12 @@ export const nextRound = mutation({
         }
 
         if (totalReceived > 0 && totalReceived >= totalExpected) {
-            console.log(`[GAME] Round ${targetRound} Auto-Advance: All answers received (Bots). Starting VOTING.`);
+            console.log(`[GAME] Round ${targetRound} Auto-Advance: All answers received. Starting VOTING.`);
             await ctx.db.patch(args.gameId, {
                 status: "VOTING",
                 currentPromptId: allPrompts[0]._id,
                 roundStatus: "VOTING"
             });
-            // Trigger Bot Votes for the first prompt
             const delay = 300 + Math.random() * 400;
             await ctx.scheduler.runAfter(delay, api.bots.castVotes, { gameId: args.gameId, promptId: allPrompts[0]._id });
         } else {
@@ -243,7 +277,7 @@ export const nextRound = mutation({
                 roundStatus: undefined
             });
 
-            // Schedule bots to send suggestions to their human captains
+            // Schedule bots to send suggestions
             const suggestionDelay = 500 + Math.random() * 500;
             await ctx.scheduler.runAfter(suggestionDelay, api.bots.sendSuggestions, { gameId: args.gameId });
         }
@@ -262,20 +296,19 @@ export const hostTriggerNextBattle = mutation({
             throw new Error("Invalid host token");
         }
 
-        // Only proceed if still in REVEAL state (VIP may have skipped ahead)
+        // Only proceed if still in REVEAL state
         if (game.status !== "VOTING" || game.roundStatus !== "REVEAL") {
             console.log("[AUTO-ADVANCE] Skipping nextBattle - state already changed");
             return;
         }
 
-        console.log(`[AUTO-ADVANCE] Host triggered nextBattle for round ${game.currentRound}, promptId: ${game.currentPromptId}`);
+        console.log(`[AUTO-ADVANCE] Host triggered nextBattle for round ${game.currentRound}`);
 
-        // Damage Calculation (same as nextBattle)
+        // Same logic as nextBattle
         if (game.currentPromptId) {
             await resolveBattle(ctx, args.gameId, game.currentPromptId, game.currentRound);
         }
 
-        // Generic check: If only 1 fighter remains, game ends immediately
         const playersAfterBattle = await ctx.db.query("players")
             .withIndex("by_game", q => q.eq("gameId", args.gameId))
             .collect();
@@ -285,9 +318,7 @@ export const hostTriggerNextBattle = mutation({
 
         if (activeFighters.length <= 1) {
             if (activeFighters.length === 1) {
-                console.log(`[GAME] Only 1 fighter remains: ${activeFighters[0].name} wins! Ending game.`);
-            } else {
-                console.log(`[GAME] No fighters remain! Ending game (draw).`);
+                console.log(`[GAME] Winner: ${activeFighters[0].name}!`);
             }
             await ctx.db.patch(args.gameId, {
                 status: "RESULTS",
@@ -299,13 +330,10 @@ export const hostTriggerNextBattle = mutation({
             return;
         }
 
-        // Check for Round 4 Winner (Sudden Death)
-        if (game.currentRound === 4) {
-            const activePlayers = await ctx.db.query("players").withIndex("by_game", (q) => q.eq("gameId", args.gameId)).collect();
-            const survivors = activePlayers.filter((p) => !p.knockedOut);
-
+        if (game.currentRound === 3) {
+            const survivors = playersAfterBattle.filter(p => !p.knockedOut && p.role === "FIGHTER");
             if (survivors.length === 1) {
-                console.log(`[GAME] Round 4 Ended: Winner is ${survivors[0].name}`);
+                console.log(`[FINAL] Winner: ${survivors[0].name}!`);
                 await ctx.db.patch(args.gameId, {
                     status: "RESULTS",
                     currentPromptId: undefined,
@@ -317,17 +345,14 @@ export const hostTriggerNextBattle = mutation({
             }
         }
 
-        // Move to NEXT prompt
         const allPrompts = await ctx.db.query("prompts").withIndex("by_game", q => q.eq("gameId", args.gameId)).collect();
         const currentIndex = allPrompts.findIndex(p => p._id === game.currentPromptId);
 
-        // Refresh players to check for knockouts
         const currentPlayers = await ctx.db.query("players").withIndex("by_game", q => q.eq("gameId", args.gameId)).collect();
         const knockedOutIds = new Set(currentPlayers.filter(p => p.knockedOut).map(p => p._id));
 
         let nextPromptId = null;
 
-        // Find the next prompt where NO assigned player is knocked out
         for (let i = currentIndex + 1; i < allPrompts.length; i++) {
             const p = allPrompts[i];
             const assignedIds = p.assignedTo || [];
@@ -336,8 +361,6 @@ export const hostTriggerNextBattle = mutation({
             if (!isMatchupDead) {
                 nextPromptId = p._id;
                 break;
-            } else {
-                console.log(`[GAME] Skipping prompt ${p._id} because a player is knocked out.`);
             }
         }
 
@@ -349,19 +372,15 @@ export const hostTriggerNextBattle = mutation({
             const delay = 300 + Math.random() * 400;
             await ctx.scheduler.runAfter(delay, api.bots.castVotes, { gameId: args.gameId, promptId: nextPromptId });
         } else {
-            // If no next prompt found
-            if (game.currentRound === 4) {
-                const updatedPlayers = await ctx.db.query("players").withIndex("by_game", q => q.eq("gameId", args.gameId)).collect();
-                const survivors = updatedPlayers.filter(p => !p.knockedOut);
-
+            if (game.currentRound === 3) {
+                const survivors = currentPlayers.filter(p => !p.knockedOut && p.role === "FIGHTER");
                 if (survivors.length === 2) {
-                    console.log(`[GAME] Round 4: No winner yet, starting next Sudden Death prompt!`);
-                    await createSuddenDeathPrompt(ctx, args.gameId, survivors[0], survivors[1], updatedPlayers);
+                    console.log(`[FINAL] Both finalists survived, creating new prompt...`);
+                    await createFinalPrompt(ctx, args.gameId, survivors[0], survivors[1], currentPlayers);
                     return;
                 }
             }
 
-            // End of Round
             const maxRounds = game.maxRounds || 3;
             if (game.currentRound < maxRounds) {
                 await ctx.db.patch(args.gameId, {
@@ -370,7 +389,11 @@ export const hostTriggerNextBattle = mutation({
                     roundStatus: undefined
                 });
             } else {
-                await ctx.db.patch(args.gameId, { status: "RESULTS", currentPromptId: undefined, roundStatus: undefined });
+                await ctx.db.patch(args.gameId, {
+                    status: "RESULTS",
+                    currentPromptId: undefined,
+                    roundStatus: undefined
+                });
                 const cleanupDelay = 60 * 60 * 1000;
                 await ctx.scheduler.runAfter(cleanupDelay, api.admin.deleteGame, { gameId: args.gameId });
             }
@@ -389,7 +412,7 @@ export const hostTriggerNextRound = mutation({
             throw new Error("Invalid host token");
         }
 
-        // Only proceed if still in ROUND_RESULTS (VIP may have skipped ahead)
+        // Only proceed if still in ROUND_RESULTS
         if (game.status !== "ROUND_RESULTS") {
             console.log("[AUTO-ADVANCE] Skipping nextRound - state already changed");
             return;
@@ -397,62 +420,62 @@ export const hostTriggerNextRound = mutation({
 
         console.log(`[AUTO-ADVANCE] Host triggered nextRound from round ${game.currentRound}`);
 
-        // Depending on Round Number, pick Phase (same as nextRound)
         const targetRound = game.currentRound + 1;
 
-        if (targetRound === 3) {
-            console.log("[GAME] Starting Phase 3: The Gauntlet");
-            await resolvePhase2(ctx, args.gameId);
-        }
-
-        await ctx.db.patch(args.gameId, { currentRound: targetRound });
-
-        // Reset all winStreaks and combos at round boundaries
-        const allPlayers = await ctx.db.query("players").withIndex("by_game", q => q.eq("gameId", args.gameId)).collect();
-        for (const player of allPlayers) {
-            const hasStreak = player.winStreak && player.winStreak > 0;
-            const hasCombo = player.combo && player.combo > 0;
-            if (hasStreak || hasCombo) {
-                console.log(`[ROUND RESET] Resetting ${player.name}'s winStreak: ${player.winStreak || 0} → 0, combo: ${player.combo || 0} → 0`);
-                await ctx.db.patch(player._id, { winStreak: 0, combo: 0 });
-            }
-        }
-
-        // Clean old data
+        // Clean old prompts
         const oldPrompts = await ctx.db.query("prompts").withIndex("by_game", q => q.eq("gameId", args.gameId)).collect();
         for (const p of oldPrompts) await ctx.db.delete(p._id);
 
         const players = await ctx.db.query("players").withIndex("by_game", q => q.eq("gameId", args.gameId)).collect();
 
-        if (targetRound === 2) {
-            console.log("[GAME] Starting Phase 2: The Cull");
-            await setupPhase2(ctx, args.gameId, players);
+        // Reset win streaks
+        for (const player of players) {
+            if (player.role === "FIGHTER" && !player.knockedOut) {
+                await ctx.db.patch(player._id, { winStreak: 0 });
+            }
+        }
 
-            const promptsAfterSetup = await ctx.db.query("prompts").withIndex("by_game", q => q.eq("gameId", args.gameId)).collect();
-            if (promptsAfterSetup.length === 0) {
-                console.log("[GAME] Round 2 Auto-Pass: No matchups needed. Advancing to Results.");
+        await ctx.db.patch(args.gameId, { currentRound: targetRound });
+
+        if (targetRound === 2) {
+            console.log(`[GAME] Performing The Cut...`);
+            const { semifinalists } = await performTheCut(ctx, args.gameId);
+
+            if (semifinalists.length < 2) {
                 await ctx.db.patch(args.gameId, {
-                    status: "ROUND_RESULTS",
+                    status: "RESULTS",
                     currentPromptId: undefined,
                     roundStatus: undefined
                 });
+                const cleanupDelay = 60 * 60 * 1000;
+                await ctx.scheduler.runAfter(cleanupDelay, api.admin.deleteGame, { gameId: args.gameId });
                 return;
             }
+
+            await setupSemiFinals(ctx, args.gameId, semifinalists);
+
         } else if (targetRound === 3) {
             const updatedPlayers = await ctx.db.query("players").withIndex("by_game", q => q.eq("gameId", args.gameId)).collect();
-            await setupPhase3(ctx, args.gameId, updatedPlayers);
-        } else if (targetRound === 4) {
-            const updatedPlayers = await ctx.db.query("players").withIndex("by_game", q => q.eq("gameId", args.gameId)).collect();
-            await setupPhase4(ctx, args.gameId, updatedPlayers);
+            const finalists = updatedPlayers.filter(p => p.role === "FIGHTER" && !p.knockedOut);
+            finalists.sort((a, b) => (b.hp ?? 0) - (a.hp ?? 0));
+            await setupFinal(ctx, args.gameId, finalists.slice(0, 2));
+
         } else {
-            console.log(`[GAME] Starting Round ${targetRound} (Default Setup)`);
-            await setupPhase1(ctx, args.gameId, players);
+            await setupMainRound(ctx, args.gameId, players);
         }
 
-        // Check if we can auto-advance to VOTING
         const allPrompts = await ctx.db.query("prompts").withIndex("by_game", q => q.eq("gameId", args.gameId)).collect();
-        const totalExpected = allPrompts.length * 2;
 
+        if (allPrompts.length === 0) {
+            await ctx.db.patch(args.gameId, {
+                status: "ROUND_RESULTS",
+                currentPromptId: undefined,
+                roundStatus: undefined
+            });
+            return;
+        }
+
+        const totalExpected = allPrompts.length * 2;
         let totalReceived = 0;
         for (const prompt of allPrompts) {
             const subs = await ctx.db.query("submissions").withIndex("by_prompt", q => q.eq("promptId", prompt._id)).collect();
@@ -460,7 +483,6 @@ export const hostTriggerNextRound = mutation({
         }
 
         if (totalReceived > 0 && totalReceived >= totalExpected) {
-            console.log(`[GAME] Round ${targetRound} Auto-Advance: All answers received (Bots). Starting VOTING.`);
             await ctx.db.patch(args.gameId, {
                 status: "VOTING",
                 currentPromptId: allPrompts[0]._id,
@@ -469,7 +491,6 @@ export const hostTriggerNextRound = mutation({
             const delay = 300 + Math.random() * 400;
             await ctx.scheduler.runAfter(delay, api.bots.castVotes, { gameId: args.gameId, promptId: allPrompts[0]._id });
         } else {
-            console.log(`[GAME] Round ${targetRound} Starting: Waiting for answers.`);
             await ctx.db.patch(args.gameId, {
                 status: "PROMPTS",
                 currentPromptId: undefined,

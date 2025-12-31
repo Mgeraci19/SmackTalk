@@ -28,8 +28,8 @@ export const setupRound2Test = mutation({
         await ctx.db.patch(gameId, { currentPromptId: prompt1 });
 
         // 4. Create Submissions for Prompt 1
-        await ctx.db.insert("submissions", { promptId: prompt1, playerId: p1, text: "Weak Answer" });
-        const s2 = await ctx.db.insert("submissions", { promptId: prompt1, playerId: p2, text: "Strong Answer" });
+        await ctx.db.insert("submissions", { promptId: prompt1, playerId: p1, text: "Weak Answer", submittedAt: 1000 });
+        const s2 = await ctx.db.insert("submissions", { promptId: prompt1, playerId: p2, text: "Strong Answer", submittedAt: 2000 });
 
         // 5. Create Votes (All for Killer, so Victim takes damage)
         // Damage Calc: votesAgainst / totalVotes * 35. 

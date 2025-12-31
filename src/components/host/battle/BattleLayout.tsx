@@ -216,7 +216,7 @@ export function BattleLayout({
           </div>
         </div>
 
-        {/* Message Overlay (K.O., FINISHER!, SPECIAL K.O.!, Combo, Tie, etc.) */}
+        {/* Message Overlay (K.O., FINISHER!, SPECIAL K.O.!, SPEED WIN!, Combo, Tie, etc.) */}
         {tieMessage && (
           tieMessage === "K.O." ? (
             // BIG dramatic K.O. display
@@ -234,6 +234,39 @@ export function BattleLayout({
                 }}
               >
                 K.O.
+              </div>
+            </div>
+          ) : tieMessage === "SPEED WIN!" ? (
+            // SPEED WIN! display - cyan/electric blue theme
+            <div
+              className="absolute inset-0 flex items-center justify-center bg-black/60"
+              style={{ zIndex: 50 }}
+            >
+              <div className="relative">
+                {/* Glow effect behind text */}
+                <div
+                  className="absolute inset-0 blur-xl"
+                  style={{
+                    background: "radial-gradient(ellipse at center, rgba(0,255,255,0.6) 0%, rgba(0,191,255,0.3) 50%, transparent 70%)",
+                  }}
+                />
+                <div
+                  className="text-[6rem] md:text-[10rem] font-black animate-pulse relative whitespace-nowrap"
+                  style={{
+                    color: "#00FFFF", // Cyan
+                    textShadow: `
+                      0 0 40px rgba(0,255,255,1),
+                      0 0 80px rgba(0,191,255,0.8),
+                      0 0 120px rgba(0,127,255,0.6),
+                      0 0 200px rgba(0,100,255,0.4)
+                    `,
+                    fontFamily: "'Impact', 'Arial Black', sans-serif",
+                    letterSpacing: "0.05em",
+                    WebkitTextStroke: "3px #006666",
+                  }}
+                >
+                  SPEED WIN!
+                </div>
               </div>
             </div>
           ) : (tieMessage === "FINISHER!" || tieMessage === "SPECIAL K.O.!" || tieMessage === "3 WIN K.O.!") ? (

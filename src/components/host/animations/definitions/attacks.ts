@@ -44,6 +44,8 @@ export const attackNormalAnimation: AnimationDefinition = {
       console.warn("[attackNormalAnimation] isWinner not set, using vote counts as fallback");
     }
 
+    const winner = winnerIsLeft ? leftBattler : rightBattler;
+    const wonBySpeed = winner?.wonBySpeed === true;
     const damage = winnerIsLeft ? rightDamage : leftDamage;
     const direction = winnerIsLeft ? 1 : -1;
 
@@ -51,10 +53,23 @@ export const attackNormalAnimation: AnimationDefinition = {
 
     const timeline = gsap.timeline({
       onComplete: () => {
+        context.setTieMessage?.(null); // Clear any message
         context.setPhase?.("complete");
         context.onComplete?.();
       },
     });
+
+    // Show SPEED WIN! message if won by speed tiebreaker
+    if (wonBySpeed) {
+      console.log(`[attackNormalAnimation] ${winner?.name} won by speed!`);
+      timeline.call(() => {
+        context.setTieMessage?.("SPEED WIN!");
+      });
+      timeline.to({}, { duration: 0.8 }); // Hold message briefly
+      timeline.call(() => {
+        context.setTieMessage?.(null);
+      });
+    }
 
     // Set attacking state
     context.setFighterState?.(winnerIsLeft ? "left" : "right", "attacking");

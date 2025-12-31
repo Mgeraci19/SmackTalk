@@ -4,6 +4,7 @@ import { ErrorBanner } from "@/components/ui/error-banner";
 import { GameState } from "@/lib/types";
 import { SuggestionCard } from "./cards/SuggestionCard";
 import { getPendingPromptsForPlayer } from "@/lib/promptUtils";
+import { AttackType } from "./cards/PromptCard";
 
 interface CaptainWritingViewProps {
     game: GameState;
@@ -13,7 +14,7 @@ interface CaptainWritingViewProps {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     submitSuggestion: (args: { gameId: Id<"games">; playerId: Id<"players">; sessionToken: string; promptId: Id<"prompts">; text: string }) => Promise<any>;
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    submitAnswerForBot: (args: { gameId: Id<"games">; playerId: Id<"players">; sessionToken: string; promptId: Id<"prompts">; text: string }) => Promise<any>;
+    submitAnswerForBot: (args: { gameId: Id<"games">; playerId: Id<"players">; sessionToken: string; promptId: Id<"prompts">; text: string; attackType?: AttackType }) => Promise<any>;
 }
 
 export function CaptainWritingView({ game, playerId, sessionToken, myTeamId, submitSuggestion, submitAnswerForBot }: CaptainWritingViewProps) {
@@ -21,6 +22,9 @@ export function CaptainWritingView({ game, playerId, sessionToken, myTeamId, sub
 
     const captain = game.players.find((p) => p._id === myTeamId);
     const captainIsBot = captain?.isBot;
+
+    // Final round (Round 3) shows attack type selector
+    const isFinalRound = game.currentRound === 3;
 
     // Use utility function to get prompts based on corner man role
     const captainPrompts = getPendingPromptsForPlayer(
@@ -40,6 +44,8 @@ export function CaptainWritingView({ game, playerId, sessionToken, myTeamId, sub
             data-captain-is-bot={captainIsBot}
             data-prompts-pending={pendingCaptainPrompts.length}
             data-prompts-total={captainPrompts.length}
+            data-current-round={game.currentRound}
+            data-is-final-round={isFinalRound}
             className="space-y-6 relative"
         >
             <ErrorBanner error={error} onDismiss={clearError} />
@@ -70,6 +76,7 @@ export function CaptainWritingView({ game, playerId, sessionToken, myTeamId, sub
                         captainIsBot={captainPlayer?.isBot}
                         submitAnswerForBot={submitAnswerForBot}
                         showError={showError}
+                        showAttackTypeSelector={isFinalRound}
                     />
 
                 )

@@ -13,6 +13,7 @@ export interface BattlerInfo {
   maxHp: number;
   submissionTime?: number; // For tie-breaking in double KO scenarios
   winStreak?: number; // Track consecutive wins for combo bonuses
+  wonBySpeed?: boolean; // True if this battler won via speed tiebreaker
 }
 
 export type RevealPhase =

@@ -12,12 +12,12 @@ interface FighterHealthBarProps {
     isWinner?: boolean;
     showDamage?: number; // Flash damage number when set
     avatar?: string; // Base64 avatar image
-    winStreak?: number; // Show special bar indicator (3 wins = finisher)
-    combo?: number; // Vote combo counter (always visible)
+    specialBar?: number; // Special attack meter (0-3.0, triggers at 3.0)
+    currentRound?: number; // For round-specific display
 }
 
-export function FighterHealthBar({ name, hp, maxHp, side, isWinner, showDamage, avatar, winStreak, combo }: FighterHealthBarProps) {
-    console.log(`[FIGHTER HP BAR] Render - ${name}, winStreak: ${winStreak}, combo: ${combo}`);
+export function FighterHealthBar({ name, hp, maxHp, side, isWinner, showDamage, avatar, specialBar, currentRound }: FighterHealthBarProps) {
+    console.log(`[FIGHTER HP BAR] Render - ${name}, specialBar: ${specialBar}`);
 
     const hpBarRef = useRef<HTMLDivElement>(null);
     const damageRef = useRef<HTMLDivElement>(null);
@@ -91,39 +91,29 @@ export function FighterHealthBar({ name, hp, maxHp, side, isWinner, showDamage, 
                 </div>
             </div>
 
-            {/* Special Bar - 3 segments that fill with wins */}
+            {/* Special Bar - 3 segments that fill with wins (triggers KO at 3.0) */}
             <div className={`flex items-center gap-2 mb-2 ${side === "right" ? "flex-row-reverse" : ""}`}>
+                <span className="text-xs text-gray-400 uppercase">Special</span>
                 <div className="flex gap-1">
                     {[0, 1, 2].map((segment) => (
                         <div
                             key={segment}
-                            className={`w-6 h-3 rounded-sm border transition-all duration-300 ${
-                                (winStreak ?? 0) > segment
-                                    ? "bg-gradient-to-r from-orange-500 to-yellow-400 border-yellow-500 shadow-[0_0_8px_rgba(255,165,0,0.6)]"
+                            className={`w-8 h-4 rounded-sm border-2 transition-all duration-300 ${
+                                (specialBar ?? 0) > segment
+                                    ? "bg-gradient-to-r from-orange-500 to-yellow-400 border-yellow-500 shadow-[0_0_10px_rgba(255,165,0,0.7)]"
                                     : "bg-gray-700 border-gray-600"
                             }`}
                         />
                     ))}
                 </div>
-                {(winStreak ?? 0) >= 2 && (
-                    <span className="text-xs font-bold text-yellow-400 animate-pulse">
-                        {winStreak === 2 ? "SPECIAL CHARGED!" : "🔥"}
+                {(specialBar ?? 0) >= 2 && (
+                    <span className={`text-xs font-bold animate-pulse ${
+                        (specialBar ?? 0) >= 3 ? "text-red-500" : "text-yellow-400"
+                    }`}>
+                        {(specialBar ?? 0) >= 3
+                            ? (currentRound === 3 ? "FINISHER!" : "KO!")
+                            : "READY!"}
                     </span>
-                )}
-            </div>
-
-            {/* Combo Counter - Always visible above HP bar */}
-            <div className={`flex items-center gap-1 mb-1 ${side === "right" ? "justify-end" : "justify-start"}`}>
-                <span className="text-xs text-gray-400">COMBO</span>
-                <span className={`text-sm font-bold ${
-                    (combo ?? 0) > 0
-                        ? (combo ?? 0) >= 5 ? "text-purple-400" : "text-cyan-400"
-                        : "text-gray-500"
-                }`}>
-                    {combo ?? 0}
-                </span>
-                {(combo ?? 0) >= 3 && (
-                    <span className="text-xs text-cyan-400">+{Math.round(((combo ?? 0) / 8) * 15)}%</span>
                 )}
             </div>
 

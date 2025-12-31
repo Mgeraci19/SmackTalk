@@ -125,18 +125,29 @@ export function HostVotingView({ game, showWritingIndicator = false }: HostVotin
     const voteCountsList = currentSubmissions.map((sub) => voteCounts[sub._id as string] || 0);
     const isTie = voteCountsList.length === 2 && voteCountsList[0] === voteCountsList[1];
 
+    // Check for speed tiebreaker winner
+    const speedWinner = currentSubmissions.find((sub) => sub.wonBySpeed === true);
+
     const result = currentSubmissions.map((sub, index) => {
       const player = game.players.find((p) => p._id === sub.playerId);
       const voteCount = voteCounts[sub._id as string] || 0;
-      // Only mark as winner if NOT a tie and has max votes
-      const isWinner = !isTie && isReveal && totalVotes > 0 && voteCount === maxVotes && voteCount > 0;
       const voters = votersBySubmission[sub._id as string] || [];
+
+      // Winner determination:
+      // 1. If this submission won by speed, they're the winner (tie broken by speed)
+      // 2. Otherwise, winner has max votes (and no tie)
+      const isWinner = isReveal && (
+        (sub.wonBySpeed === true) ||
+        (!isTie && !speedWinner && totalVotes > 0 && voteCount === maxVotes && voteCount > 0)
+      );
+
       return {
         ...sub,
         player,
         voteCount,
         isWinner,
         voters,
+        wonBySpeed: sub.wonBySpeed,
         side: (index === 0 ? "left" : "right") as "left" | "right",
       };
     });
@@ -173,6 +184,7 @@ export function HostVotingView({ game, showWritingIndicator = false }: HostVotin
         maxHp: leftBattler.player?.maxHp || 100,
         submissionTime: leftBattler._creationTime,
         winStreak: leftBattler.player?.winStreak,
+        wonBySpeed: leftBattler.wonBySpeed,
       }
     : null;
 
@@ -193,6 +205,7 @@ export function HostVotingView({ game, showWritingIndicator = false }: HostVotin
         maxHp: rightBattler.player?.maxHp || 100,
         submissionTime: rightBattler._creationTime,
         winStreak: rightBattler.player?.winStreak,
+        wonBySpeed: rightBattler.wonBySpeed,
       }
     : null;
 
@@ -292,8 +305,8 @@ export function HostVotingView({ game, showWritingIndicator = false }: HostVotin
               isWinner={battleComplete && leftBattler.isWinner}
               avatar={leftBattler.player.avatar}
               showDamage={leftShowDamage}
-              winStreak={leftBattler.player.winStreak}
-              combo={leftBattler.player.combo}
+              specialBar={leftBattler.player.specialBar}
+              currentRound={game.currentRound}
             />
           )}
         </div>
@@ -314,8 +327,8 @@ export function HostVotingView({ game, showWritingIndicator = false }: HostVotin
               isWinner={battleComplete && rightBattler.isWinner}
               avatar={rightBattler.player.avatar}
               showDamage={rightShowDamage}
-              winStreak={rightBattler.player.winStreak}
-              combo={rightBattler.player.combo}
+              specialBar={rightBattler.player.specialBar}
+              currentRound={game.currentRound}
             />
           )}
         </div>
@@ -340,7 +353,11 @@ export function HostVotingView({ game, showWritingIndicator = false }: HostVotin
       {battleComplete && (
         <div className="text-center py-2 flex-shrink-0">
           <div className="text-lg text-gray-500">
-            {winner ? `${winner.player?.name} wins this round!` : "It's a tie!"}
+            {winner ? (
+              winner.wonBySpeed
+                ? `${winner.player?.name} wins by SPEED!`
+                : `${winner.player?.name} wins this round!`
+            ) : "It's a tie!"}
           </div>
         </div>
       )}

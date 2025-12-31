@@ -4,7 +4,7 @@ import { useState } from "react";
 import { useErrorState } from "@/hooks/useErrorState";
 import { ErrorBanner } from "@/components/ui/error-banner";
 import { GameState } from "@/lib/types";
-import { PromptCard } from "./cards/PromptCard";
+import { PromptCard, AttackType } from "./cards/PromptCard";
 
 interface FighterWritingViewProps {
     game: GameState;
@@ -13,7 +13,7 @@ interface FighterWritingViewProps {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     startGame: (args: { gameId: Id<"games">; playerId: Id<"players">; sessionToken: string }) => Promise<any>;
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    submitAnswer: (args: { gameId: Id<"games">; playerId: Id<"players">; sessionToken: string; promptId: Id<"prompts">; text: string }) => Promise<any>;
+    submitAnswer: (args: { gameId: Id<"games">; playerId: Id<"players">; sessionToken: string; promptId: Id<"prompts">; text: string; attackType?: AttackType }) => Promise<any>;
 }
 
 export function FighterWritingView({ game, playerId, sessionToken, startGame, submitAnswer }: FighterWritingViewProps) {
@@ -24,6 +24,9 @@ export function FighterWritingView({ game, playerId, sessionToken, startGame, su
     const myPrompts = game.prompts?.filter((p) => p.assignedTo?.includes(playerId!)) || [];
     const pendingPrompts = myPrompts.filter((p) => !game.submissions?.some((s) => s.promptId === p._id && s.playerId === playerId));
 
+    // Final round (Round 3) shows attack type selector
+    const isFinalRound = game.currentRound === 3;
+
     return (
         <div
             id="writing-view-fighter"
@@ -32,6 +35,8 @@ export function FighterWritingView({ game, playerId, sessionToken, startGame, su
             data-prompts-pending={pendingPrompts.length}
             data-prompts-total={myPrompts.length}
             data-all-submitted={pendingPrompts.length === 0}
+            data-current-round={game.currentRound}
+            data-is-final-round={isFinalRound}
             className="space-y-6 relative"
         >
             <ErrorBanner error={error} onDismiss={clearError} />
@@ -69,13 +74,14 @@ export function FighterWritingView({ game, playerId, sessionToken, startGame, su
                                 prompt={p}
                                 initialValue=""
                                 isDone={done}
-                                onSubmit={async (text: string) => {
+                                onSubmit={async (text: string, attackType?: AttackType) => {
                                     await submitAnswer({
                                         gameId: game._id,
                                         playerId: playerId as Id<"players">,
                                         sessionToken,
                                         promptId: p._id,
-                                        text
+                                        text,
+                                        attackType: isFinalRound ? attackType : undefined
                                     });
                                     setSubmittedPrompts(prev => new Set(prev).add(p._id));
                                 }}
@@ -83,6 +89,7 @@ export function FighterWritingView({ game, playerId, sessionToken, startGame, su
                                     setValueCallback = setter;
                                 }}
                                 showError={showError}
+                                showAttackTypeSelector={isFinalRound}
                             />
 
                             {/* Display Suggestions if any */}

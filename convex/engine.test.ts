@@ -20,7 +20,7 @@ async function setupVotingScenario(
       roomCode: "TEST",
       status: "VOTING",
       currentRound,
-      maxRounds: 4,
+      maxRounds: 3, // New game flow: Main Round, Semi-Finals, Final
     });
   });
 
@@ -64,12 +64,13 @@ async function setupVotingScenario(
     });
   });
 
-  // Create submissions
+  // Create submissions (player 1 submits first for speed tiebreaker)
   const sub1Id = await t.run(async (ctx) => {
     return await ctx.db.insert("submissions", {
       promptId,
       playerId: player1Id,
       text: "Player 1 answer",
+      submittedAt: 1000, // Earlier timestamp = wins speed tiebreaker
     });
   });
 
@@ -78,6 +79,7 @@ async function setupVotingScenario(
       promptId,
       playerId: player2Id,
       text: "Player 2 answer",
+      submittedAt: 2000, // Later timestamp
     });
   });
 
@@ -141,11 +143,10 @@ async function setupVotingScenario(
 }
 
 describe("engine.nextBattle - damage calculation", () => {
-  test("player with fewer votes takes more damage", async () => {
+  test("player with fewer votes takes damage (0.5x in Main Round)", async () => {
     const t = convexTest(schema);
     // Player 1 gets 1 vote, Player 2 gets 3 votes
-    // Player 1 (loser) takes damage from 3 votes against (75% of 35 = 26 damage)
-    // Player 2 (winner) takes NO damage
+    // In Main Round (Round 1): damage = (3/4) * 35 * 0.5 = 13.125 → 13
     const { gameId, player1Id, player2Id } = await setupVotingScenario(t, {
       player1Votes: 1,
       player2Votes: 3,
@@ -160,17 +161,18 @@ describe("engine.nextBattle - damage calculation", () => {
     const player1 = await t.run(async (ctx) => ctx.db.get(player1Id));
     const player2 = await t.run(async (ctx) => ctx.db.get(player2Id));
 
-    // Player 1 had fewer votes (loser), takes damage
-    // Damage = (3/4) * 35 = 26.25 → floor(100 - 26.25) = 73
-    expect(player1!.hp!).toBe(73);
-    // Player 2 had more votes (winner), takes NO damage, gets winStreak
+    // Player 1 (loser) takes 0.5x damage: (3/4) * 35 * 0.5 = 13
+    // HP can't go below 1 in Main Round (only special bar kills)
+    expect(player1!.hp!).toBe(87);
+    // Player 2 (winner) takes NO damage, gets winStreak+1 and special bar+1
     expect(player2!.hp!).toBe(100);
     expect(player2!.winStreak).toBe(1);
+    expect(player2!.specialBar).toBe(1);
     // Player 1 has winStreak reset to 0
     expect(player1!.winStreak).toBe(0);
   });
 
-  test("even votes result in equal damage", async () => {
+  test("even votes use speed tiebreaker (faster submitter wins)", async () => {
     const t = convexTest(schema);
     const { gameId, player1Id, player2Id } = await setupVotingScenario(t, {
       player1Votes: 2,
@@ -186,14 +188,18 @@ describe("engine.nextBattle - damage calculation", () => {
     const player1 = await t.run(async (ctx) => ctx.db.get(player1Id));
     const player2 = await t.run(async (ctx) => ctx.db.get(player2Id));
 
-    // Equal damage for equal votes
-    expect(player1!.hp).toBe(player2!.hp);
-    // Both have winStreak reset to 0 (normal tie resets combos)
-    expect(player1!.winStreak).toBe(0);
-    expect(player2!.winStreak).toBe(0);
+    // Player 1 submitted first (timestamp 1000 vs 2000), so they win
+    // Winner gets +1 special bar
+    expect(player1!.specialBar ?? 0).toBe(1);
+    expect(player1!.hp).toBe(100); // Winner takes no damage
+
+    // Loser takes damage (0.5x multiplier in Main Round)
+    // With 2-2 votes (50% each), damage = 0.5 * 35 * 0.5 = ~8
+    expect(player2!.hp).toBeLessThan(100);
+    expect(player2!.specialBar ?? 0).toBe(0);
   });
 
-  test("damage cap is 35 HP per battle", async () => {
+  test("Main Round max damage is ~17 HP (0.5x of 35)", async () => {
     const t = convexTest(schema);
     // All 10 votes for player 2 means player 1 takes 100% of damage
     const { gameId, player1Id, player2Id } = await setupVotingScenario(t, {
@@ -210,44 +216,23 @@ describe("engine.nextBattle - damage calculation", () => {
     const player1 = await t.run(async (ctx) => ctx.db.get(player1Id));
     const player2 = await t.run(async (ctx) => ctx.db.get(player2Id));
 
-    // Player 1 takes max 35 damage
-    expect(player1!.hp).toBe(65);
+    // Player 1 takes max damage: 35 * 0.5 = 17.5 → 17
+    // HP can't go below 1 in Main Round
+    expect(player1!.hp).toBe(83);
     // Player 2 takes 0 damage (won all votes)
     expect(player2!.hp).toBe(100);
   });
 
-  test("round 4 applies 1.5x damage multiplier", async () => {
+  test("Special bar triggers KO at 3.0", async () => {
     const t = convexTest(schema);
-    // Same vote distribution but in round 4
-    const { gameId, player1Id } = await setupVotingScenario(t, {
-      player1Votes: 0,
-      player2Votes: 10,
-      currentRound: 4,
-    });
-
-    await t.mutation(api.engine.nextBattle, {
-      gameId,
-      playerId: player1Id,
-      sessionToken: "token1",
-    });
-
-    const player1 = await t.run(async (ctx) => ctx.db.get(player1Id));
-
-    // Player 1 takes 35 * 1.5 = 52.5 damage, floored to 52, so 100 - 52 = 48
-    // But the game floors (100 - 52.5) = 47
-    expect(player1!.hp).toBe(47);
-  });
-
-  test("player at 0 HP is knocked out", async () => {
-    const t = convexTest(schema);
-    const { gameId, player1Id } = await setupVotingScenario(t, {
+    const { gameId, player1Id, player2Id } = await setupVotingScenario(t, {
       player1Votes: 0,
       player2Votes: 10,
     });
 
-    // Set player1 HP low enough to be knocked out
+    // Give player2 special bar of 2.0 (one more win triggers KO)
     await t.run(async (ctx) => {
-      await ctx.db.patch(player1Id, { hp: 30 });
+      await ctx.db.patch(player2Id, { specialBar: 2.0 });
     });
 
     await t.mutation(api.engine.nextBattle, {
@@ -257,9 +242,42 @@ describe("engine.nextBattle - damage calculation", () => {
     });
 
     const player1 = await t.run(async (ctx) => ctx.db.get(player1Id));
+    const player2 = await t.run(async (ctx) => ctx.db.get(player2Id));
 
+    // Player 2's special bar should now be 3.0, triggering KO on player 1
+    expect(player2!.specialBar).toBe(3.0);
     expect(player1!.hp).toBe(0);
     expect(player1!.knockedOut).toBe(true);
+    expect(player1!.role).toBe("CORNER_MAN");
+    expect(player1!.teamId).toBe(player2Id); // Loser becomes corner man for winner
+  });
+
+  test("HP cannot kill in Main Round (min 1 HP)", async () => {
+    const t = convexTest(schema);
+    const { gameId, player1Id, player2Id } = await setupVotingScenario(t, {
+      player1Votes: 0,
+      player2Votes: 10,
+    });
+
+    // Set player1 HP very low
+    await t.run(async (ctx) => {
+      await ctx.db.patch(player1Id, { hp: 5 });
+    });
+
+    await t.mutation(api.engine.nextBattle, {
+      gameId,
+      playerId: player1Id,
+      sessionToken: "token1",
+    });
+
+    const player1 = await t.run(async (ctx) => ctx.db.get(player1Id));
+    const player2 = await t.run(async (ctx) => ctx.db.get(player2Id));
+
+    // HP can't go below 1 in Main Round (only special bar kills)
+    // Since player2's special bar is 0→1 (not 3.0), no KO
+    expect(player1!.hp).toBe(1);
+    expect(player1!.knockedOut).toBe(false);
+    expect(player2!.specialBar).toBe(1.0);
   });
 
   test("no damage when no votes cast", async () => {
@@ -284,16 +302,16 @@ describe("engine.nextBattle - damage calculation", () => {
     expect(player2!.hp).toBe(100);
   });
 
-  test("2-win combo applies bonus damage", async () => {
+  test("Special bar accumulates with each win", async () => {
     const t = convexTest(schema);
     const { gameId, player1Id, player2Id } = await setupVotingScenario(t, {
       player1Votes: 3,
       player2Votes: 1,
     });
 
-    // Give player1 a winStreak of 1 (simulating a previous win)
+    // Give player1 special bar of 1.0 (simulating a previous win)
     await t.run(async (ctx) => {
-      await ctx.db.patch(player1Id, { winStreak: 1 });
+      await ctx.db.patch(player1Id, { specialBar: 1.0 });
     });
 
     await t.mutation(api.engine.nextBattle, {
@@ -305,26 +323,40 @@ describe("engine.nextBattle - damage calculation", () => {
     const player1 = await t.run(async (ctx) => ctx.db.get(player1Id));
     const player2 = await t.run(async (ctx) => ctx.db.get(player2Id));
 
-    // Player2 takes base damage + COMBO_BONUS_DAMAGE (15)
-    // Base damage: (3/4) * 35 = 26.25, + 15 bonus = 41.25
-    // floor(100 - 41.25) = floor(58.75) = 58
-    expect(player2!.hp).toBe(58);
-    // Player1 winStreak increments to 2
-    expect(player1!.winStreak).toBe(2);
-    // Player2 winStreak resets to 0
+    // Player1 special bar increments to 2.0
+    expect(player1!.specialBar).toBe(2.0);
+    expect(player1!.winStreak).toBe(1);
+    // Player2 takes damage but special bar unchanged (they lost)
+    expect(player2!.hp).toBe(87); // 100 - 13 = 87 (0.5x damage)
     expect(player2!.winStreak).toBe(0);
   });
 
-  test("3-win combo triggers instant KO", async () => {
+  test("Final round applies attack type multipliers", async () => {
     const t = convexTest(schema);
+    // Use Final round (Round 3)
     const { gameId, player1Id, player2Id } = await setupVotingScenario(t, {
-      player1Votes: 3,
-      player2Votes: 1,
+      player1Votes: 0,
+      player2Votes: 10,
+      currentRound: 3, // Final
     });
 
-    // Give player1 a winStreak of 2 (simulating 2 previous wins)
+    // Set up Final round HP (200) and submissions with attack types
     await t.run(async (ctx) => {
-      await ctx.db.patch(player1Id, { winStreak: 2 });
+      await ctx.db.patch(player1Id, { hp: 200, maxHp: 200 });
+      await ctx.db.patch(player2Id, { hp: 200, maxHp: 200 });
+
+      // Update submissions to have attack types
+      const subs = await ctx.db.query("submissions").collect();
+      // Player 2 (winner) uses flyingKick (3x dealt)
+      // Player 1 (loser) uses jab (1x received)
+      // Loser takes max(3x dealt, 1x received) = 3x damage
+      for (const sub of subs) {
+        if (sub.playerId === player2Id) {
+          await ctx.db.patch(sub._id, { attackType: "flyingKick" as const });
+        } else {
+          await ctx.db.patch(sub._id, { attackType: "jab" as const });
+        }
+      }
     });
 
     await t.mutation(api.engine.nextBattle, {
@@ -336,11 +368,9 @@ describe("engine.nextBattle - damage calculation", () => {
     const player1 = await t.run(async (ctx) => ctx.db.get(player1Id));
     const player2 = await t.run(async (ctx) => ctx.db.get(player2Id));
 
-    // Player2 takes instant KO damage (HP = 0)
-    expect(player2!.hp).toBe(0);
-    expect(player2!.knockedOut).toBe(true);
-    // Player1 winStreak increments to 3
-    expect(player1!.winStreak).toBe(3);
+    // Player 1 takes 3x damage: 35 * 3 = 105
+    expect(player1!.hp).toBe(95); // 200 - 105 = 95
+    expect(player2!.hp).toBe(200); // Winner takes no damage
   });
 });
 
@@ -388,7 +418,7 @@ describe("engine.nextRound", () => {
         roomCode: "TEST",
         status: "ROUND_RESULTS",
         currentRound: 1,
-        maxRounds: 4,
+        maxRounds: 3, // New game flow
       });
     });
 
@@ -445,7 +475,7 @@ describe("engine.nextRound", () => {
         roomCode: "TEST",
         status: "ROUND_RESULTS",
         currentRound: 1,
-        maxRounds: 4,
+        maxRounds: 3, // New game flow
       });
     });
 
@@ -481,7 +511,7 @@ describe("engine.nextRound", () => {
         roomCode: "TEST",
         status: "ROUND_RESULTS",
         currentRound: 1,
-        maxRounds: 4,
+        maxRounds: 3, // New game flow
       });
     });
 
@@ -539,16 +569,16 @@ describe("engine.nextRound", () => {
 });
 
 describe("Pairing exclusion - Bug 10", () => {
-  test("KO'd players are excluded from Phase 2 pairing", async () => {
+  test("KO'd players are excluded from Semi-Finals pairing", async () => {
     const t = convexTest(schema);
 
-    // Create a game ready for Phase 2
+    // Create a game ready for Semi-Finals (Round 2)
     const gameId = await t.run(async (ctx) => {
       return await ctx.db.insert("games", {
         roomCode: "TEST",
         status: "ROUND_RESULTS",
         currentRound: 1,
-        maxRounds: 4,
+        maxRounds: 3, // New game flow
       });
     });
 
@@ -647,13 +677,13 @@ describe("Pairing exclusion - Bug 10", () => {
   test("CORNER_MAN role players are excluded from pairing", async () => {
     const t = convexTest(schema);
 
-    // Create a game ready for Phase 3
+    // Create a game ready for Final (Round 3)
     const gameId = await t.run(async (ctx) => {
       return await ctx.db.insert("games", {
         roomCode: "TEST",
         status: "ROUND_RESULTS",
         currentRound: 2,
-        maxRounds: 4,
+        maxRounds: 3, // New game flow
       });
     });
 
