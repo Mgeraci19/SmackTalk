@@ -15,6 +15,18 @@ export function HostWritingView({ game }: HostWritingViewProps) {
     // Get all fighters (not corner men) - INCLUDE bots to show their avatars
     const fighters = game.players.filter(p => p.role === "FIGHTER");
 
+    // Build teams: fighters with their corner men
+    const fightersWithTeams = fighters.map(fighter => {
+        const cornerMen = game.players.filter(
+            p => p.role === "CORNER_MAN" && p.teamId === fighter._id
+        );
+        return { fighter, cornerMen };
+    });
+
+    // Determine if we should show bye status (Round 2 only)
+    const isRound2 = game.currentRound === 2;
+    const isRound3OrLater = game.currentRound >= 3;
+
     // Count submissions for current round
     const submissions = game.submissions || [];
 
@@ -55,25 +67,65 @@ export function HostWritingView({ game }: HostWritingViewProps) {
 
             {/* Fighter Status Grid */}
             <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-8">
-                {fighters.map((fighter) => {
+                {fightersWithTeams.map(({ fighter, cornerMen }) => {
                     const hasSubmitted = submittedPlayerIds.has(fighter._id);
+                    const hasBye = isRound2 && cornerMen.length > 0;
+                    const hasCornerMen = cornerMen.length > 0;
 
                     return (
                         <div
                             key={fighter._id}
-                            className="flex flex-col items-center"
+                            className={`flex flex-col items-center relative ${hasBye ? "bg-green-900/20 rounded-xl p-4 border-2 border-green-500/50" : ""}`}
                         >
+                            {/* BYE badge for Round 2 */}
+                            {hasBye && (
+                                <div className="absolute -top-3 left-1/2 -translate-x-1/2 bg-green-600 text-white text-sm font-bold px-3 py-1 rounded-full z-10">
+                                    ROUND 2 BYE
+                                </div>
+                            )}
+
+                            {/* Captain avatar - larger when has corner men */}
                             <FighterPlaceholder
                                 name={fighter.name}
                                 hp={fighter.hp}
                                 maxHp={fighter.maxHp}
                                 isKnockedOut={fighter.knockedOut}
-                                size="small"
+                                size={hasCornerMen ? "medium" : "small"}
                                 avatar={fighter.avatar}
                             />
-                            <div className={`mt-2 text-xl font-bold ${hasSubmitted ? "text-green-500" : "text-gray-500 animate-pulse"}`}>
-                                {hasSubmitted ? "READY" : "Writing..."}
+
+                            {/* Status text */}
+                            <div className={`mt-2 text-xl font-bold ${hasSubmitted ? "text-green-500" : hasBye ? "text-green-400" : "text-gray-500 animate-pulse"}`}>
+                                {hasBye ? "BYE" : hasSubmitted ? "READY" : "Writing..."}
                             </div>
+
+                            {/* Corner Men display */}
+                            {hasCornerMen && (
+                                <div className="mt-3 flex flex-col items-center">
+                                    {isRound3OrLater && (
+                                        <div className="text-sm text-gray-400 mb-2">
+                                            Supported by
+                                        </div>
+                                    )}
+                                    <div className="flex gap-2 justify-center">
+                                        {cornerMen.map((cm) => (
+                                            <div key={cm._id} className="flex flex-col items-center">
+                                                <FighterPlaceholder
+                                                    name={cm.name}
+                                                    hp={0}
+                                                    maxHp={100}
+                                                    isKnockedOut={true}
+                                                    size="tiny"
+                                                    avatar={cm.avatar}
+                                                />
+                                                <div className="text-xs text-purple-300 mt-1 max-w-16 truncate">
+                                                    {cm.name}
+                                                </div>
+                                            </div>
+                                        ))}
+                                    </div>
+                                </div>
+                            )}
                         </div>
                     );
                 })}

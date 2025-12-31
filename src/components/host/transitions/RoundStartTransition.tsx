@@ -17,6 +17,7 @@ export function RoundStartTransition({ gameState, onComplete }: TransitionProps)
   const overlayRef = useRef<HTMLDivElement>(null);
   const roundTextRef = useRef<HTMLDivElement>(null);
   const subtitleRef = useRef<HTMLDivElement>(null);
+  const descriptionRef = useRef<HTMLDivElement>(null);
   const cornerMenRef = useRef<HTMLDivElement>(null);
   const { containerRef, shake } = useScreenShake();
 
@@ -24,10 +25,18 @@ export function RoundStartTransition({ gameState, onComplete }: TransitionProps)
   const roundSubtitles: Record<number, string> = {
     1: "THE OPENER",
     2: "THE CULL",
-    3: "THE GAUNTLET",
-    4: "SUDDEN DEATH",
+    3: "ROUND ROBIN",
+    4: "LAST MAN STANDING",
   };
   const subtitle = roundSubtitles[roundNumber] || "FIGHT!";
+
+  // Round-specific descriptions
+  const roundDescriptions: Record<number, string[]> = {
+    1: ["Survive the opening round!", "Lose 3 straight and you're eliminated!"],
+    3: ["Fighting continues until only 2 fighters remain!"],
+    4: ["Non-stop battles until one remains!"],
+  };
+  const descriptions = roundDescriptions[roundNumber] || [];
 
   // Get corner men who became corner men in the PREVIOUS round
   // Round 2: Show players who became corner men in Round 1 (becameCornerManInRound === 1)
@@ -66,6 +75,9 @@ export function RoundStartTransition({ gameState, onComplete }: TransitionProps)
     gsap.set(overlayRef.current, { opacity: 0 });
     gsap.set(roundTextRef.current, { scale: 4, opacity: 0 });
     gsap.set(subtitleRef.current, { y: 50, opacity: 0 });
+    if (descriptionRef.current) {
+      gsap.set(descriptionRef.current, { y: 30, opacity: 0 });
+    }
     if (cornerMenRef.current) {
       gsap.set(cornerMenRef.current, { y: 50, opacity: 0 });
     }
@@ -96,6 +108,16 @@ export function RoundStartTransition({ gameState, onComplete }: TransitionProps)
         ease: "power2.out",
       }, "-=0.1");
 
+    // Animate in descriptions if present
+    if (descriptionRef.current && descriptions.length > 0) {
+      tl.to(descriptionRef.current, {
+        y: 0,
+        opacity: 1,
+        duration: 0.4,
+        ease: "power2.out",
+      }, "+=0.2");
+    }
+
     // If there are corner men to show, animate them in
     if (showCornerMen && cornerMenRef.current) {
       tl.to(cornerMenRef.current, {
@@ -107,6 +129,9 @@ export function RoundStartTransition({ gameState, onComplete }: TransitionProps)
 
       // Hold longer to show corner men
       tl.to({}, { duration: 2.5 });
+    } else if (descriptions.length > 0) {
+      // Hold longer to read descriptions
+      tl.to({}, { duration: 2.0 });
     } else {
       // Normal hold duration
       tl.to({}, { duration: 1.2 });
@@ -121,7 +146,7 @@ export function RoundStartTransition({ gameState, onComplete }: TransitionProps)
     return () => {
       tl.kill();
     };
-  }, [roundNumber, onComplete, shake, subtitle, showCornerMen]);
+  }, [roundNumber, onComplete, shake, subtitle, showCornerMen, descriptions]);
 
   return (
     <div ref={containerRef} className="fixed inset-0 z-50 pointer-events-none">
@@ -156,6 +181,24 @@ export function RoundStartTransition({ gameState, onComplete }: TransitionProps)
         >
           {subtitle}
         </div>
+
+        {/* Description - Round-specific info */}
+        {descriptions.length > 0 && (
+          <div
+            ref={descriptionRef}
+            className="mt-6 flex flex-col items-center gap-2"
+          >
+            {descriptions.map((desc, index) => (
+              <div
+                key={index}
+                className="text-2xl text-gray-300 font-medium tracking-wide"
+                style={{ textShadow: "0 0 20px rgba(255,255,255,0.3)" }}
+              >
+                {desc}
+              </div>
+            ))}
+          </div>
+        )}
 
         {/* Corner Men Debut - Shows fallen fighters who became corner men */}
         {showCornerMen && (

@@ -5,7 +5,7 @@ interface FighterPlaceholderProps {
     maxHp?: number;
     isKnockedOut?: boolean;
     side?: "left" | "right";
-    size?: "small" | "medium" | "large";
+    size?: "tiny" | "small" | "medium" | "large";
     avatar?: string; // Base64 PNG image
 }
 
@@ -19,6 +19,7 @@ export function FighterPlaceholder({
     avatar,
 }: FighterPlaceholderProps) {
     const sizeClasses = {
+        tiny: "w-12 h-16",
         small: "w-24 h-32",
         medium: "w-40 h-52",
         large: "w-56 h-72",

@@ -28,8 +28,6 @@ export function RoundResultsView({ game, playerId, sessionToken, isVip, nextRoun
             <ErrorBanner error={error} onDismiss={clearError} />
 
             <h2 id="round-results-title" className="text-3xl font-bold mb-4">ROUND {game.currentRound} OVER</h2>
-            <p className="mb-8">Current Standings:</p>
-            <p className="mb-8">Current Standings:</p>
             {/* HIDE STANDINGS ON MOBILE */}
             <div
                 id="round-standings-hidden-message"

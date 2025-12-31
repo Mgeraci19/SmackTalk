@@ -184,11 +184,11 @@ export function SuddenDeathIntro({ gameState, onComplete }: TransitionProps) {
           </div>
         </div>
 
-        {/* Center "SUDDEN DEATH" text */}
+        {/* Center "LAST MAN STANDING" text */}
         <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none">
           <div
             ref={textRef}
-            className="text-[8rem] md:text-[12rem] font-bold leading-none"
+            className="text-[6rem] md:text-[10rem] font-bold leading-none text-center"
             style={{
               textShadow: "0 0 60px rgba(255,0,0,1), 0 0 120px rgba(255,0,0,0.8), 0 0 180px rgba(255,0,0,0.6)",
               color: "#ff0000",
@@ -196,17 +196,17 @@ export function SuddenDeathIntro({ gameState, onComplete }: TransitionProps) {
               WebkitTextStroke: "3px #8b0000",
             }}
           >
-            SUDDEN
+            LAST MAN
             <br />
-            DEATH
+            STANDING
           </div>
 
           <div
             ref={subtitleRef}
-            className="mt-4 text-3xl md:text-4xl font-bold tracking-wider text-yellow-400"
+            className="mt-4 text-2xl md:text-3xl font-bold tracking-wider text-yellow-400"
             style={{ textShadow: "0 0 30px rgba(255,200,0,0.8)" }}
           >
-            FINAL BATTLE
+            Non-stop battles until one remains!
           </div>
         </div>
 
