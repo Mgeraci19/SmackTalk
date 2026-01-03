@@ -31,7 +31,7 @@ export function useFabricCanvas(
 ): FabricCanvasState & FabricCanvasActions {
   const [canvas, setCanvas] = useState<Canvas | null>(null);
   const [currentTool, setCurrentTool] = useState<Tool>("brush");
-  const [currentColor, setCurrentColor] = useState("#000000");
+  const [currentColor, setCurrentColor] = useState("#ffffff");
   const [brushSize, setBrushSizeState] = useState(8);
   const [canUndo, setCanUndo] = useState(false);
 
@@ -46,7 +46,7 @@ export function useFabricCanvas(
     const fabricCanvas = new Canvas(canvasRef.current, {
       width: CANVAS_SIZE,
       height: CANVAS_SIZE,
-      backgroundColor: "#ffffff",
+      backgroundColor: "#000000",
       isDrawingMode: true,
       selection: true,
     });
@@ -92,7 +92,7 @@ export function useFabricCanvas(
 
     if (canvas.freeDrawingBrush) {
       if (currentTool === "eraser") {
-        canvas.freeDrawingBrush.color = "#ffffff";
+        canvas.freeDrawingBrush.color = "#000000";
       } else {
         canvas.freeDrawingBrush.color = currentColor;
       }
@@ -113,7 +113,7 @@ export function useFabricCanvas(
       canvas.renderAll();
 
       if (canvas.freeDrawingBrush) {
-        canvas.freeDrawingBrush.color = tool === "eraser" ? "#ffffff" : currentColor;
+        canvas.freeDrawingBrush.color = tool === "eraser" ? "#000000" : currentColor;
         canvas.freeDrawingBrush.width = brushSize;
       }
     } else if (tool === "select") {
@@ -204,7 +204,7 @@ export function useFabricCanvas(
     if (!canvas) return;
 
     canvas.clear();
-    canvas.backgroundColor = "#ffffff";
+    canvas.backgroundColor = "#000000";
     canvas.renderAll();
 
     // Save cleared state
@@ -232,7 +232,7 @@ export function useFabricCanvas(
 
       // Clear canvas first
       canvas.clear();
-      canvas.backgroundColor = "#ffffff";
+      canvas.backgroundColor = "#000000";
 
       // Scale image to fit canvas
       const scale = Math.min(CANVAS_SIZE / (fabricImg.width || 1), CANVAS_SIZE / (fabricImg.height || 1));

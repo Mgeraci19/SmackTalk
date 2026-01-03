@@ -123,18 +123,18 @@ export function HostGameResultsView({ game }: HostGameResultsViewProps) {
             {winner && (
                 <div className="mb-12 text-center">
                     <div
-                        className="text-4xl md:text-5xl text-yellow-400 mb-6 font-bold tracking-wider"
+                        className="text-4xl md:text-5xl text-yellow-400 mb-12 font-bold tracking-wider"
                         style={{ textShadow: "0 0 30px rgba(255,215,0,0.6)" }}
                     >
                         👑 CHAMPION 👑
                     </div>
-                    <div className="transform scale-110">
+                    <div>
                         <AvatarFighter
                             name={winner.name}
                             avatar={winner.avatar}
                             side="left"
                             state="victory"
-                            size="large"
+                            size="medium"
                         />
                     </div>
                     <div

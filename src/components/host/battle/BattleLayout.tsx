@@ -22,6 +22,7 @@ const ATTACK_TYPE_CONFIG = {
     bgColor: "bg-blue-900/50",
     borderColor: "border-blue-500",
     multiplier: "1x",
+    riskLevel: "Safe",
   },
   haymaker: {
     icon: "🥊",
@@ -30,6 +31,7 @@ const ATTACK_TYPE_CONFIG = {
     bgColor: "bg-orange-900/50",
     borderColor: "border-orange-500",
     multiplier: "2x",
+    riskLevel: "Risky",
   },
   flyingKick: {
     icon: "🦶",
@@ -38,12 +40,36 @@ const ATTACK_TYPE_CONFIG = {
     bgColor: "bg-red-900/50",
     borderColor: "border-red-500",
     multiplier: "3x/4x",
+    riskLevel: "High Risk!",
   },
 } as const;
 
-function AttackTypeBadge({ attackType }: { attackType?: "jab" | "haymaker" | "flyingKick" }) {
+function AttackTypeBadge({ attackType, isLarge = false, isWinner, showResult = false }: {
+  attackType?: "jab" | "haymaker" | "flyingKick";
+  isLarge?: boolean;
+  isWinner?: boolean;
+  showResult?: boolean;
+}) {
   if (!attackType) return null;
   const config = ATTACK_TYPE_CONFIG[attackType];
+
+  if (isLarge) {
+    // Large display for Final Round - more prominent
+    return (
+      <div className={`flex flex-col items-center gap-1 px-4 py-2 rounded-xl ${config.bgColor} border-2 ${config.borderColor} mb-2`}>
+        <span className="text-3xl">{config.icon}</span>
+        <span className={`font-bold text-lg ${config.color}`}>{config.label}</span>
+        <span className="text-sm text-gray-300 font-bold">({config.multiplier} damage)</span>
+        {showResult && (
+          <span className={`text-sm font-bold mt-1 ${isWinner ? "text-green-400" : "text-red-400"}`}>
+            {isWinner ? "✓ LANDED" : "✗ MISSED"}
+          </span>
+        )}
+      </div>
+    );
+  }
+
+  // Standard small badge
   return (
     <div className={`inline-flex items-center gap-2 px-3 py-1 rounded-full ${config.bgColor} border ${config.borderColor} mb-2`}>
       <span className="text-lg">{config.icon}</span>
@@ -59,6 +85,7 @@ interface BattleLayoutProps {
   promptText: string;
   state: BattleState;
   refs: BattleRefs;
+  currentRound?: number;
 }
 
 /**
@@ -73,9 +100,13 @@ export function BattleLayout({
   promptText,
   state,
   refs,
+  currentRound,
 }: BattleLayoutProps) {
   const { phase, tieMessage, leftFighterState, rightFighterState, answerOrder } = state;
   const { showVotes, showWinner, showAuthors } = getVisibilityFlags(phase);
+
+  // Use larger attack badges in Final Round (round 3)
+  const isFinalRound = currentRound === 3;
 
   // Get answer data based on randomized order
   const firstAnswer = answerOrder.first === "left" ? leftBattler : rightBattler;
@@ -153,7 +184,12 @@ export function BattleLayout({
                   </div>
                   {firstAnswer.attackType && (
                     <div className="flex justify-center">
-                      <AttackTypeBadge attackType={firstAnswer.attackType} />
+                      <AttackTypeBadge
+                        attackType={firstAnswer.attackType}
+                        isLarge={isFinalRound}
+                        isWinner={firstAnswer.isWinner}
+                        showResult={isFinalRound && showWinner}
+                      />
                     </div>
                   )}
                   {firstAnswer.submissionTime && !firstAnswer.attackType && (
@@ -222,7 +258,12 @@ export function BattleLayout({
                   </div>
                   {secondAnswer.attackType && (
                     <div className="flex justify-center">
-                      <AttackTypeBadge attackType={secondAnswer.attackType} />
+                      <AttackTypeBadge
+                        attackType={secondAnswer.attackType}
+                        isLarge={isFinalRound}
+                        isWinner={secondAnswer.isWinner}
+                        showResult={isFinalRound && showWinner}
+                      />
                     </div>
                   )}
                   {secondAnswer.submissionTime && !secondAnswer.attackType && (

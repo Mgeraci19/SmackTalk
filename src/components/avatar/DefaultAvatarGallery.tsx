@@ -32,7 +32,7 @@ export function DefaultAvatarGallery({
           }}
           className="flex flex-col items-center gap-1 p-2 rounded-lg hover:bg-gray-100 transition-colors active:scale-95"
         >
-          <div className="w-16 h-16 rounded-lg border-2 border-gray-300 overflow-hidden bg-white">
+          <div className="w-16 h-16 rounded-lg border-2 border-gray-600 overflow-hidden bg-black">
             <img
               src={avatar.imageData}
               alt={avatar.name}

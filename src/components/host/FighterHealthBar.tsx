@@ -4,6 +4,8 @@
 import { useEffect, useRef, useState } from "react";
 import { gsap } from "./animations/gsapConfig";
 
+const SPECIAL_BAR_TRIGGER = 3.0;
+
 interface FighterHealthBarProps {
     name: string;
     hp: number;
@@ -21,7 +23,10 @@ export function FighterHealthBar({ name, hp, maxHp, side, isWinner, showDamage, 
 
     const hpBarRef = useRef<HTMLDivElement>(null);
     const damageRef = useRef<HTMLDivElement>(null);
+    const specialBarContainerRef = useRef<HTMLDivElement>(null);
+    const segmentRefs = useRef<(HTMLDivElement | null)[]>([]);
     const prevHpRef = useRef(hp);
+    const prevSpecialBarRef = useRef(specialBar ?? 0);
     const [displayedHp, setDisplayedHp] = useState(hp);
 
     const hpPercentage = Math.max(0, (hp / maxHp) * 100);
@@ -68,6 +73,45 @@ export function FighterHealthBar({ name, hp, maxHp, side, isWinner, showDamage, 
         });
     }, [showDamage]);
 
+    // Animate special bar when it becomes full (shake + glow effect)
+    useEffect(() => {
+        const currentBar = specialBar ?? 0;
+        const previousBar = prevSpecialBarRef.current;
+
+        // Only animate when bar just became full (transition from <3 to >=3)
+        if (currentBar >= SPECIAL_BAR_TRIGGER && previousBar < SPECIAL_BAR_TRIGGER) {
+            console.log(`[SPECIAL BAR] ${name} special bar FULL! Triggering shake animation`);
+
+            // Shake the special bar container
+            if (specialBarContainerRef.current) {
+                gsap.to(specialBarContainerRef.current, {
+                    x: "+=4",
+                    duration: 0.05,
+                    repeat: 12,
+                    yoyo: true,
+                    ease: "power2.inOut",
+                    onComplete: () => {
+                        gsap.set(specialBarContainerRef.current, { x: 0 });
+                    }
+                });
+            }
+
+            // Glow effect on filled segments
+            const filledSegments = segmentRefs.current.filter(Boolean);
+            if (filledSegments.length > 0) {
+                gsap.to(filledSegments, {
+                    boxShadow: "0 0 25px rgba(255, 0, 0, 0.9), 0 0 50px rgba(255, 100, 0, 0.6)",
+                    duration: 0.2,
+                    repeat: 4,
+                    yoyo: true,
+                    ease: "power2.inOut"
+                });
+            }
+        }
+
+        prevSpecialBarRef.current = currentBar;
+    }, [specialBar, name]);
+
     return (
         <div className={`flex-1 ${side === "right" ? "text-right" : "text-left"}`}>
             {/* Avatar + Name Row */}
@@ -92,13 +136,14 @@ export function FighterHealthBar({ name, hp, maxHp, side, isWinner, showDamage, 
             </div>
 
             {/* Special Bar - 3 segments that fill with wins (triggers KO at 3.0) */}
-            <div className={`flex flex-col gap-1 mb-2`}>
+            <div ref={specialBarContainerRef} className={`flex flex-col gap-1 mb-2`}>
                 <div className={`flex items-center gap-2 ${side === "right" ? "flex-row-reverse" : ""}`}>
                     <span className="text-xs text-gray-400 uppercase">Special</span>
                     <div className="flex gap-1">
                         {[0, 1, 2].map((segment) => (
                             <div
                                 key={segment}
+                                ref={(el) => { segmentRefs.current[segment] = el; }}
                                 className={`w-8 h-4 rounded-sm border-2 transition-all duration-300 ${
                                     (specialBar ?? 0) > segment
                                         ? "bg-gradient-to-r from-orange-500 to-yellow-400 border-yellow-500 shadow-[0_0_10px_rgba(255,165,0,0.7)]"

@@ -158,11 +158,16 @@ async function handleNonTie(
     console.log(`[BATTLE] ${winner.player.name} (${winner.votesFor} votes) beats ${loser.player.name} (${loser.votesFor} votes)`);
 
     // Check if loser is already KO'd (post-KO prompts)
+    // Only process post-KO healing in Round 1 (Main Round)
     if (loser.player.knockedOut) {
-        console.log(`[POST-KO] ${loser.player.name} already KO'd, processing healing for winner`);
-        // Type guard for winner.player
-        const winnerWithPlayer = { ...winner, player: winner.player! };
-        await handlePostKOHealing(ctx, winnerWithPlayer, loser, currentRound, DAMAGE_CAP, totalVotes);
+        if (currentRound === 1) {
+            console.log(`[POST-KO] ${loser.player.name} already KO'd, processing healing for winner`);
+            // Type guard for winner.player
+            const winnerWithPlayer = { ...winner, player: winner.player! };
+            await handlePostKOHealing(ctx, winnerWithPlayer, loser, currentRound, DAMAGE_CAP, totalVotes);
+        } else {
+            console.log(`[POST-KO] Round ${currentRound}: ${loser.player.name} already KO'd, skipping (no healing outside Main Round)`);
+        }
         return;
     }
 

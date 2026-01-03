@@ -68,15 +68,25 @@ export function LobbyView({ game, playerId, sessionToken, isVip, startGame }: Lo
                     >
                         {/* Avatar thumbnail */}
                         {p.avatar ? (
-                            <img src={p.avatar} alt={`${p.name}'s avatar`} className="w-10 h-10 rounded border-2 border-gray-300 object-cover" />
+                            <img src={p.avatar} alt={`${p.name}'s avatar`} className="w-10 h-10 rounded border-2 border-gray-600 object-cover bg-black" />
                         ) : (
-                            <div className="w-10 h-10 rounded border-2 border-gray-300 bg-gray-200 flex items-center justify-center text-gray-500">?</div>
+                            <div className="w-10 h-10 rounded border-2 border-gray-600 bg-gray-800 flex items-center justify-center text-gray-500">?</div>
                         )}
                         <span className="flex-1">{p.name} {p._id === playerId && "(You)"}</span>
                         {p.isVip && <span aria-label="VIP Player">👑</span>}
                     </li>
                 ))}
             </ul>
+            {/* Game Rules - Collapsible */}
+            <details className="bg-gray-100 rounded-lg p-3 text-sm">
+                <summary className="font-bold cursor-pointer text-gray-700">🎮 How to Play</summary>
+                <div className="mt-2 space-y-2 text-gray-600">
+                    <div><strong>Round 1:</strong> 5 prompts per matchup. Win 3 votes = KO!</div>
+                    <div><strong>Round 2:</strong> Top 4 advance. Single-word JABs only!</div>
+                    <div><strong>Final:</strong> Choose Jab (1x), Haymaker (2x), or Flying Kick (3x/4x). 3 consecutive wins = Instant KO!</div>
+                </div>
+            </details>
+
             {isVip && (
                 <>
                     {game.players.length < 1 && <div id="min-players-warning" className="text-destructive font-bold mb-2 text-center text-sm">Need at least 1 player</div>}

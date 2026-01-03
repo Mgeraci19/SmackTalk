@@ -241,6 +241,7 @@ export function AnimationOrchestrator({
       promptText={promptText || ""}
       state={state}
       refs={refs}
+      currentRound={gameState.currentRound}
     />
   );
 }

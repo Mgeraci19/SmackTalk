@@ -4,20 +4,42 @@ import { useEffect, useRef } from "react";
 import { gsap } from "./animations/gsapConfig";
 import { useScreenShake } from "./animations/useScreenShake";
 
+// Round-specific configuration
+const ROUND_CONFIG: Record<number, { name: string; subtitle: string; hint: string }> = {
+    1: {
+        name: "MAIN ROUND",
+        subtitle: "FIGHT!",
+        hint: "First to 3 wins triggers KO!"
+    },
+    2: {
+        name: "SEMI-FINALS",
+        subtitle: "JAB IT OUT!",
+        hint: "Single-word answers only!"
+    },
+    3: {
+        name: "FINAL",
+        subtitle: "FINISH HIM!",
+        hint: "Choose your attack wisely!"
+    }
+};
+
 interface RoundTransitionProps {
     roundNumber: number;
     subtitle?: string;
     onComplete: () => void;
 }
 
-export function RoundTransition({ roundNumber, subtitle = "FIGHT!", onComplete }: RoundTransitionProps) {
+export function RoundTransition({ roundNumber, subtitle, onComplete }: RoundTransitionProps) {
+    const config = ROUND_CONFIG[roundNumber] || ROUND_CONFIG[1];
+    const displaySubtitle = subtitle || config.subtitle;
     const overlayRef = useRef<HTMLDivElement>(null);
     const roundTextRef = useRef<HTMLDivElement>(null);
     const subtitleRef = useRef<HTMLDivElement>(null);
+    const hintRef = useRef<HTMLDivElement>(null);
     const { containerRef, shake } = useScreenShake();
 
     useEffect(() => {
-        if (!overlayRef.current || !roundTextRef.current || !subtitleRef.current) return;
+        if (!overlayRef.current || !roundTextRef.current || !subtitleRef.current || !hintRef.current) return;
 
         const tl = gsap.timeline({
             onComplete: () => {
@@ -30,6 +52,7 @@ export function RoundTransition({ roundNumber, subtitle = "FIGHT!", onComplete }
         gsap.set(overlayRef.current, { opacity: 0 });
         gsap.set(roundTextRef.current, { scale: 4, opacity: 0 });
         gsap.set(subtitleRef.current, { y: 50, opacity: 0 });
+        gsap.set(hintRef.current, { y: 30, opacity: 0 });
 
         // Animation sequence
         tl
@@ -51,6 +74,13 @@ export function RoundTransition({ roundNumber, subtitle = "FIGHT!", onComplete }
             })
             // Slide in subtitle
             .to(subtitleRef.current, {
+                y: 0,
+                opacity: 1,
+                duration: 0.3,
+                ease: "power2.out",
+            }, "-=0.1")
+            // Slide in hint
+            .to(hintRef.current, {
                 y: 0,
                 opacity: 1,
                 duration: 0.3,
@@ -80,7 +110,10 @@ export function RoundTransition({ roundNumber, subtitle = "FIGHT!", onComplete }
                     ref={roundTextRef}
                     className="text-center"
                 >
-                    <div className="text-4xl text-gray-400 mb-2 font-bold tracking-widest">
+                    <div className="text-3xl text-gray-400 mb-1 font-bold tracking-widest">
+                        {config.name}
+                    </div>
+                    <div className="text-4xl text-gray-500 mb-2 font-bold tracking-widest">
                         ROUND
                     </div>
                     <div
@@ -100,7 +133,16 @@ export function RoundTransition({ roundNumber, subtitle = "FIGHT!", onComplete }
                     className="mt-8 text-5xl font-bold tracking-wider text-yellow-400"
                     style={{ textShadow: "0 0 30px rgba(255,200,0,0.6)" }}
                 >
-                    {subtitle}
+                    {displaySubtitle}
+                </div>
+
+                {/* Hint */}
+                <div
+                    ref={hintRef}
+                    className="mt-4 text-2xl font-medium tracking-wide text-gray-300"
+                    style={{ textShadow: "0 0 15px rgba(255,255,255,0.3)" }}
+                >
+                    {config.hint}
                 </div>
             </div>
         </div>

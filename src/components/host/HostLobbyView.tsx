@@ -62,10 +62,10 @@ export function HostLobbyView({ game }: HostLobbyViewProps) {
                                     <img
                                         src={player.avatar}
                                         alt={`${player.name}'s avatar`}
-                                        className="w-20 h-20 rounded-lg border-4 border-gray-600 object-cover mb-3"
+                                        className="w-20 h-20 rounded-lg border-4 border-gray-700 object-cover mb-3 bg-black"
                                     />
                                 ) : (
-                                    <div className="w-20 h-20 rounded-lg border-4 border-gray-600 bg-gray-700 flex items-center justify-center text-4xl text-gray-500 mb-3">
+                                    <div className="w-20 h-20 rounded-lg border-4 border-gray-700 bg-gray-900 flex items-center justify-center text-4xl text-gray-500 mb-3">
                                         ?
                                     </div>
                                 )}
@@ -81,8 +81,39 @@ export function HostLobbyView({ game }: HostLobbyViewProps) {
                 )}
             </div>
 
+            {/* Game Rules */}
+            <div className="w-full max-w-3xl mt-8 bg-gray-800/50 rounded-xl p-6 border border-gray-700">
+                <h3 className="text-2xl font-bold text-yellow-400 mb-4 text-center">🎮 HOW TO PLAY</h3>
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-center">
+                    <div className="bg-gray-900/50 rounded-lg p-4">
+                        <div className="text-3xl mb-2">1️⃣</div>
+                        <div className="text-lg font-bold text-white mb-1">MAIN ROUND</div>
+                        <div className="text-sm text-gray-400">
+                            5 prompts per matchup<br/>
+                            Win 3 votes = Fill special bar = KO!
+                        </div>
+                    </div>
+                    <div className="bg-gray-900/50 rounded-lg p-4">
+                        <div className="text-3xl mb-2">2️⃣</div>
+                        <div className="text-lg font-bold text-white mb-1">SEMI-FINALS</div>
+                        <div className="text-sm text-gray-400">
+                            Top 4 fighters advance<br/>
+                            Single-word JAB answers only!
+                        </div>
+                    </div>
+                    <div className="bg-gray-900/50 rounded-lg p-4">
+                        <div className="text-3xl mb-2">3️⃣</div>
+                        <div className="text-lg font-bold text-white mb-1">FINAL SHOWDOWN</div>
+                        <div className="text-sm text-gray-400">
+                            Choose: Jab (1x), Haymaker (2x), Flying Kick (3x/4x)<br/>
+                            3 consecutive wins = Instant KO!
+                        </div>
+                    </div>
+                </div>
+            </div>
+
             {/* Status */}
-            <div className="mt-12 text-center">
+            <div className="mt-8 text-center">
                 {players.length === 0 ? (
                     <p className="text-xl text-gray-500">
                         Scan the code or enter it on your phone
